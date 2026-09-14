@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /og/
+
+Sitemap: https://tic.kasvith.me/sitemap-index.xml
+
+# Plain-text summary for LLMs: https://tic.kasvith.me/llms.txt
