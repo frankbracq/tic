@@ -34,6 +34,9 @@ final class NoteController {
     /// Asks the manager to create a brand-new note (the in-note "+" button).
     @ObservationIgnored var onNewNote: (() -> Void)?
 
+    /// Asks the manager to show an image file — in Quick Look, or in the Preview app when the flag is set.
+    @ObservationIgnored var onOpenImage: ((URL, Bool) -> Void)?
+
     init(note: Note, database: AppDatabase) {
         self.noteID = note.id
         self.note = note
@@ -98,6 +101,32 @@ final class NoteController {
         imageCrops[id] = TaskImage.fullCrop   // optimistic; the observation confirms
         loadThumbnail(id, data: data)
         Task { [db] in try? await db.setTaskImage(taskId: id, data: data) }
+    }
+
+    /// Removes a task's image. An image-only task has nothing left, so the task goes too.
+    func removeImage(from task: TaskItem) {
+        let id = task.id
+        guard imageCrops[id] != nil else { return }
+        imageCrops[id] = nil
+        thumbnails[id] = nil
+        if (tasks.first(where: { $0.id == id })?.text ?? "").isEmpty {
+            delete(task)   // the image cascades with it
+        } else {
+            Task { [db] in try? await db.deleteTaskImage(taskId: id) }
+        }
+    }
+
+    /// Shows the task's image as currently cropped, full size — in Quick Look, or the Preview app.
+    /// The full-size decode + crop + encode runs off the main actor.
+    func openImage(_ task: TaskItem, inPreviewApp: Bool = false) {
+        let id = task.id
+        let crop = imageCrops[id] ?? TaskImage.fullCrop
+        Task { [weak self, db] in
+            guard let data = try? await db.taskImageData(taskId: id),
+                  let url = await Task.detached(operation: { TaskImage.writePreviewFile(data, crop: crop) }).value
+            else { return }
+            self?.onOpenImage?(url, inPreviewApp)
+        }
     }
 
     /// Inserts an empty subtask one level under `parent`, positioned right after `parent`'s existing

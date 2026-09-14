@@ -256,7 +256,11 @@ struct NoteView: View {
                 if hovering { withAnimation(.easeInOut(duration: 0.12)) { activeSectionID = sectionRootID(of: task) } }
             },
             image: controller.imageCrops[task.id].map { crop in
-                TaskImageView(image: controller.thumbnails[task.id], crop: crop)
+                TaskImageView(
+                    image: controller.thumbnails[task.id], crop: crop,
+                    onOpen: { controller.openImage(task, inPreviewApp: $0) },
+                    onRemove: { controller.removeImage(from: task) }
+                )
             },
             onPasteImage: { controller.attachImage($0, to: task) }
         )

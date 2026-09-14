@@ -39,6 +39,30 @@ enum TaskImage {
         return image.cropping(to: pixels.integral)
     }
 
+    /// Writes the cropped image to a temp PNG for Quick Look / Preview and returns its URL. Each call
+    /// clears earlier previews and uses a fresh folder, so a re-crop can never show a stale cached file.
+    static func writePreviewFile(_ data: Data, crop: CGRect) -> URL? {
+        let fileManager = FileManager.default
+        let root = fileManager.temporaryDirectory.appendingPathComponent("TicPreviews", isDirectory: true)
+        let png = crop == fullCrop
+            ? data   // stored data is already PNG (normalizedData)
+            : CGImageSourceCreateWithData(data as CFData, nil)
+                .flatMap { decode($0, maxPixelSize: nil) }
+                .flatMap { cropped($0, to: crop) }
+                .flatMap(pngData)
+        guard let png else { return nil }
+        do {
+            try? fileManager.removeItem(at: root)
+            let folder = root.appendingPathComponent(UUID().uuidString, isDirectory: true)
+            try fileManager.createDirectory(at: folder, withIntermediateDirectories: true)
+            let url = folder.appendingPathComponent("Image.png")
+            try png.write(to: url)
+            return url
+        } catch {
+            return nil
+        }
+    }
+
     static func pngData(_ image: CGImage) -> Data? {
         let data = NSMutableData()
         guard let destination = CGImageDestinationCreateWithData(

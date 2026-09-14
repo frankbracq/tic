@@ -85,6 +85,19 @@ struct TaskImageTests {
         let bottom = try #require(TaskImage.cropped(image, to: CGRect(x: 0, y: 0.5, width: 1, height: 0.5)))
         #expect(averageColor(bottom) == (0, 255))
     }
+
+    @Test("the preview file is the cropped image as PNG — the stored bytes themselves when uncropped")
+    func previewFile() throws {
+        let png = encode(makeImage(width: 100, height: 50), as: .png)
+
+        let full = try #require(TaskImage.writePreviewFile(png, crop: TaskImage.fullCrop))
+        #expect(try Data(contentsOf: full) == png)
+
+        let url = try #require(TaskImage.writePreviewFile(png, crop: CGRect(x: 0, y: 0, width: 0.5, height: 0.5)))
+        #expect(url != full)   // a fresh file each time, so Quick Look never shows a stale crop
+        let image = try #require(TaskImage.thumbnail(try Data(contentsOf: url), maxPixelSize: 1000))
+        #expect(image.width == 50 && image.height == 25)
+    }
 }
 
 // MARK: - Paste routing
@@ -187,6 +200,14 @@ struct TaskImageDatabaseTests {
         #expect(try await db.taskImageData(taskId: task.id) == png)
     }
 
+    @Test("removing an image keeps its task")
+    func deleteImageKeepsTask() async throws {
+        let (db, note, task, _) = try await makeTaskWithImage()
+        try await db.deleteTaskImage(taskId: task.id)
+        #expect(try await db.taskImageData(taskId: task.id) == nil)
+        #expect(try await db.tasks(noteId: note.id).map(\.id) == [task.id])
+    }
+
     @Test("deleting a note cascades to its task images")
     func cascade() async throws {
         let (db, note, task, _) = try await makeTaskWithImage()
@@ -236,5 +257,19 @@ struct NoteControllerImageTests {
         c.attachImage(encode(makeImage(), as: .png), to: row)
         c.commitText(row, "")
         #expect(c.tasks.contains { $0.id == id })
+    }
+
+    @Test("removing the image of an image-only task removes the task; a captioned task keeps its text")
+    func removeImage() async throws {
+        let c = try await makeController()
+        let png = encode(makeImage(), as: .png)
+        c.addTask("", imageData: png)
+        c.addTask("Captioned", imageData: png)
+        let (imageOnly, captioned) = (c.tasks[0], c.tasks[1])
+
+        c.removeImage(from: imageOnly)
+        c.removeImage(from: captioned)
+        #expect(c.tasks.map(\.text) == ["Captioned"])
+        #expect(c.imageCrops.isEmpty)
     }
 }

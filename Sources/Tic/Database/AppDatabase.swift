@@ -342,6 +342,13 @@ final class AppDatabase: Sendable {
         )
     }
 
+    /// Removes a task's image, keeping the task.
+    func deleteTaskImage(taskId: UUID) async throws {
+        try await dbQueue.write { db in
+            try db.execute(sql: "DELETE FROM taskImage WHERE taskId = ?", arguments: [taskId])
+        }
+    }
+
     /// The stored (original, uncropped) image bytes — read on demand, never via an observation.
     func taskImageData(taskId: UUID) async throws -> Data? {
         try await dbQueue.read { db in

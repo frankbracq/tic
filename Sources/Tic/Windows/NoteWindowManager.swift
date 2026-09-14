@@ -62,6 +62,15 @@ final class NoteWindowManager: NSObject, NSWindowDelegate {
         controller.onNewNote = { [weak self] in
             Task { await self?.newNote() }
         }
+        controller.onOpenImage = { [weak panel] url, inPreviewApp in
+            guard inPreviewApp else { panel?.showQuickLook(url); return }
+            let workspace = NSWorkspace.shared
+            if let preview = workspace.urlForApplication(withBundleIdentifier: "com.apple.Preview") {
+                workspace.open([url], withApplicationAt: preview, configuration: NSWorkspace.OpenConfiguration())
+            } else {
+                workspace.open(url)
+            }
+        }
         panel.onPasteImage = { [weak controller] data in
             controller?.addTask("", imageData: data)
         }
