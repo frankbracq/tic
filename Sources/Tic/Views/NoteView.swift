@@ -52,6 +52,8 @@ struct NoteView: View {
     // pointer moves across the heading, its children, and the affordance itself — it never darts away.
     @State private var activeSectionID: TaskItem.ID?
     @State private var quickAddFocused = false   // show the quick-add's newline hint only while typing
+    // The task whose image is under the pointer or being cropped; its row's reorder drag is paused.
+    @State private var imageInteractionTaskID: TaskItem.ID?
     @FocusState private var titleFocused: Bool
 
     private static let listSpace = "tic.tasklist"
@@ -260,7 +262,8 @@ struct NoteView: View {
                     image: controller.thumbnails[task.id], crop: crop, theme: theme,
                     onCrop: { controller.setCrop($0, for: task) },
                     onOpen: { controller.openImage(task, inPreviewApp: $0) },
-                    onRemove: { controller.removeImage(from: task) }
+                    onRemove: { controller.removeImage(from: task) },
+                    onInteractionChange: { active in setImageInteraction(task.id, active) }
                 )
             },
             onPasteImage: { controller.attachImage($0, to: task) }
@@ -284,9 +287,22 @@ struct NoteView: View {
         .opacity(dragging ? 0.95 : 1)
         .shadow(color: .black.opacity(dragging ? 0.18 : 0), radius: dragging ? 5 : 0, y: 2)
         .zIndex(dragging ? 1 : 0)
-        // Reorder is paused while completed are auto-sorted to the bottom (it would fight the sort);
-        // `.subviews` disables only this drag gesture, leaving the checkbox / inline editor clickable.
-        .gesture(reorderGesture(for: task), including: controller.isReorderable ? .all : .subviews)
+        // Reorder is paused while completed are auto-sorted to the bottom (it would fight the sort), and on a
+        // row whose image is being pointed at or cropped (so its buttons / crop handles never drag the task).
+        // `.subviews` disables only this drag gesture, leaving the checkbox / editor / image usable.
+        .gesture(
+            reorderGesture(for: task),
+            including: controller.isReorderable && imageInteractionTaskID != task.id ? .all : .subviews
+        )
+    }
+
+    /// Records whether `id`'s image is being pointed at or cropped; that row's reorder drag pauses meanwhile.
+    private func setImageInteraction(_ id: TaskItem.ID, _ active: Bool) {
+        if active {
+            imageInteractionTaskID = id
+        } else if imageInteractionTaskID == id {
+            imageInteractionTaskID = nil
+        }
     }
 
     private func reorderGesture(for task: TaskItem) -> some Gesture {

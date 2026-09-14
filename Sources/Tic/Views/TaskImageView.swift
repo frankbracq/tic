@@ -20,6 +20,9 @@ struct TaskImageView: View {
     /// Show the image full size: Quick Look (`false`) or the Preview app (`true`).
     var onOpen: (_ inPreviewApp: Bool) -> Void = { _ in }
     var onRemove: () -> Void = {}
+    /// Reports when the image starts / stops being pointed at or cropped, so the row can pause its reorder
+    /// drag — otherwise dragging a crop handle or pressing a hover button also drags the whole task.
+    var onInteractionChange: (Bool) -> Void = { _ in }
 
     @State private var hovering = false
     /// The crop being edited; non-nil exactly while in crop mode.
@@ -28,13 +31,17 @@ struct TaskImageView: View {
     @State private var cache = CroppedImageCache()
 
     var body: some View {
-        if let image {
-            if let draftCrop {
-                cropEditor(image, crop: draftCrop)
-            } else if let shown = cache.image(image, crop: crop) {
-                display(shown)
+        Group {
+            if let image {
+                if let draftCrop {
+                    cropEditor(image, crop: draftCrop)
+                } else if let shown = cache.image(image, crop: crop) {
+                    display(shown)
+                }
             }
         }
+        // While the pointer is on the image or it's being cropped, its row must not start a reorder drag.
+        .onChange(of: hovering || draftCrop != nil) { _, active in onInteractionChange(active) }
     }
 
     // MARK: - Display

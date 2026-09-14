@@ -132,6 +132,8 @@ panels**, and a few responsibilities are deliberately split across the AppKit/Sw
   SwiftUI `DragGesture` there kept following the pointer after mouse-up, and SwiftUI focus never
   arrived, so ⏎ / ⎋ / click-away did nothing. Images size through the `AspectFit` layout:
   `.aspectRatio(.fit)` + `.frame(maxHeight:)` laid out row-wide, dragging the hover chrome to the note's edge.
+  Pointing at or cropping an image pauses its row's reorder drag (`GestureMask.subviews`) — SwiftUI's row
+  `DragGesture` otherwise also fires over the image's buttons and even the AppKit crop view.
 - **Rendered Markdown is memoised (`MarkdownRenderCache`).** Parsing inline Markdown per line on
   every body re-eval made dragging janky (the whole list re-renders each frame); the cache re-parses
   only when a task's text/colour actually changes.
