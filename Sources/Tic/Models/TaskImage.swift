@@ -56,12 +56,9 @@ enum TaskImage {
         return decode(source, maxPixelSize: nil).flatMap(pngData)
     }
 
-    // ponytail: up to 2048² px (~16 MB) held per image; size thumbnails to the note's width if memory bites.
-
     /// A downsampled bitmap for drawing on the note. Rows re-render on every frame of a drag, so the
-    /// note only ever draws this — never the full-size image. 2048px stays sharp across a wide note on a
-    /// Retina display.
-    static func thumbnail(_ data: Data, maxPixelSize: Int = 2048) -> CGImage? {
+    /// note only ever draws this — never the full-size image.
+    static func thumbnail(_ data: Data, maxPixelSize: Int = 1024) -> CGImage? {
         CGImageSourceCreateWithData(data as CFData, nil).flatMap { decode($0, maxPixelSize: maxPixelSize) }
     }
 
