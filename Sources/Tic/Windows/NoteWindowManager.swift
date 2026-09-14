@@ -11,6 +11,10 @@ final class NoteWindowManager: NSObject, NSWindowDelegate {
     private var pendingFrameSaves: [UUID: Task<Void, Never>] = [:]
     /// Height a note had before it was rolled up, so it restores to the right size on expand.
     private var expandedHeights: [UUID: CGFloat] = [:]
+    /// The one image window (zoom + crop), reused for whichever image was opened last.
+    private var imageWindow: NSWindow?
+    /// The note whose image the image window is showing, so closing that note closes it too.
+    private var imageWindowNoteID: UUID?
 
     init(appDatabase: AppDatabase) {
         self.appDatabase = appDatabase
@@ -62,14 +66,9 @@ final class NoteWindowManager: NSObject, NSWindowDelegate {
         controller.onNewNote = { [weak self] in
             Task { await self?.newNote() }
         }
-        controller.onOpenImage = { [weak panel] url, inPreviewApp in
-            guard inPreviewApp else { panel?.showQuickLook(url); return }
-            let workspace = NSWorkspace.shared
-            if let preview = workspace.urlForApplication(withBundleIdentifier: "com.apple.Preview") {
-                workspace.open([url], withApplicationAt: preview, configuration: NSWorkspace.OpenConfiguration())
-            } else {
-                workspace.open(url)
-            }
+        controller.onOpenImage = { [weak self, weak controller, weak panel] taskId in
+            guard let self, let controller, let panel else { return }
+            self.showImageWindow(controller: controller, taskId: taskId, from: panel)
         }
         panel.onPasteImage = { [weak controller] data in
             controller?.stageImage(data)
@@ -170,6 +169,38 @@ final class NoteWindowManager: NSObject, NSWindowDelegate {
         }
     }
 
+    // MARK: - Image window
+
+    /// Shows a task's image in the image window, creating the window on first use. It takes the note's
+    /// window level, so it opens above a float-on-top note, and activates the app so it comes up in front
+    /// (notes are non-activating panels).
+    private func showImageWindow(controller: NoteController, taskId: UUID, from panel: NotePanel) {
+        let window = imageWindow ?? makeImageWindow()
+        imageWindow = window
+        imageWindowNoteID = controller.noteID
+        let text = controller.tasks.first(where: { $0.id == taskId })?.text ?? ""
+        window.title = text.split(separator: "\n").first.map(String.init) ?? "Image"
+        window.contentView = NSHostingView(
+            rootView: ImageViewer(controller: controller, taskId: taskId) { [weak window] in window?.close() }
+        )
+        window.level = panel.level
+        NSApp.activate()
+        window.makeKeyAndOrderFront(nil)
+    }
+
+    private func makeImageWindow() -> NSWindow {
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 720, height: 520),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            backing: .buffered, defer: false
+        )
+        window.isReleasedWhenClosed = false
+        window.minSize = NSSize(width: 320, height: 240)
+        window.center()
+        window.setFrameAutosaveName("TicImageWindow")
+        return window
+    }
+
     var openCount: Int { panels.count }
 
     // MARK: - NSWindowDelegate
@@ -179,6 +210,7 @@ final class NoteWindowManager: NSObject, NSWindowDelegate {
 
     func windowWillClose(_ notification: Notification) {
         guard let panel = notification.object as? NotePanel else { return }
+        if imageWindowNoteID == panel.noteID { imageWindow?.close() }
         pendingFrameSaves[panel.noteID]?.cancel()
         pendingFrameSaves[panel.noteID] = nil
         expandedHeights[panel.noteID] = nil

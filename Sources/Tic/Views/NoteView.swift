@@ -257,9 +257,8 @@ struct NoteView: View {
             },
             image: controller.imageCrops[task.id].map { crop in
                 TaskImageView(
-                    image: controller.thumbnails[task.id], crop: crop, theme: theme,
-                    onCrop: { controller.setCrop($0, for: task) },
-                    onOpen: { controller.openImage(task, inPreviewApp: $0) },
+                    image: controller.thumbnails[task.id], crop: crop,
+                    onOpen: { controller.openImage(task) },
                     onRemove: { controller.removeImage(from: task) }
                 )
             },

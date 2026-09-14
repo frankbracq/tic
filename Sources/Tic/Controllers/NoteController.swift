@@ -34,8 +34,8 @@ final class NoteController {
     /// Asks the manager to create a brand-new note (the in-note "+" button).
     @ObservationIgnored var onNewNote: (() -> Void)?
 
-    /// Asks the manager to show an image file — in Quick Look, or in the Preview app when the flag is set.
-    @ObservationIgnored var onOpenImage: ((URL, Bool) -> Void)?
+    /// Asks the manager to show a task's image (by task id) in the image window.
+    @ObservationIgnored var onOpenImage: ((UUID) -> Void)?
 
     init(note: Note, database: AppDatabase) {
         self.noteID = note.id
@@ -155,17 +155,23 @@ final class NoteController {
         }
     }
 
-    /// Shows the task's image as currently cropped, full size — in Quick Look, or the Preview app.
-    /// The full-size decode + crop + encode runs off the main actor.
-    func openImage(_ task: TaskItem, inPreviewApp: Bool = false) {
-        let id = task.id
+    /// Opens the task's image in the image window (zoom, crop).
+    func openImage(_ task: TaskItem) {
+        onOpenImage?(task.id)
+    }
+
+    /// The task's stored image at full resolution, uncropped — decoded off the main actor.
+    func fullImage(taskId id: UUID) async -> CGImage? {
+        guard let data = try? await db.taskImageData(taskId: id) else { return nil }
+        return await Task.detached { TaskImage.fullImage(data) }.value
+    }
+
+    /// A temp PNG of the task's image as currently cropped, for handing to the Preview app — rendered off
+    /// the main actor.
+    func previewFile(taskId id: UUID) async -> URL? {
         let crop = imageCrops[id] ?? TaskImage.fullCrop
-        Task { [weak self, db] in
-            guard let data = try? await db.taskImageData(taskId: id),
-                  let url = await Task.detached(operation: { TaskImage.writePreviewFile(data, crop: crop) }).value
-            else { return }
-            self?.onOpenImage?(url, inPreviewApp)
-        }
+        guard let data = try? await db.taskImageData(taskId: id) else { return nil }
+        return await Task.detached { TaskImage.writePreviewFile(data, crop: crop) }.value
     }
 
     /// Inserts an empty subtask one level under `parent`, positioned right after `parent`'s existing

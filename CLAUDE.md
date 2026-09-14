@@ -80,9 +80,10 @@ panels**, and a few responsibilities are deliberately split across the AppKit/Sw
 - **`PlainTextEditor`** (`NSViewRepresentable` over `NSTextView`) — the task / quick-add editor.
   AppKit, not SwiftUI `TextField`, because that control can't reliably insert newlines or intercept
   Tab on macOS (see the editing convention below). **`ShortcutHint`** is the small keycap-chip label.
-- **`TaskImage`** (pure CoreGraphics/ImageIO, no AppKit / no DB) + **`TaskImageView`** — pasted images:
-  normalise/thumbnail/crop/preview-file helpers and the crop maths (`dragging`, `moving`), and the view
-  that draws a task's image with its hover buttons, context menu, and crop mode.
+- **`TaskImage`** (pure CoreGraphics/ImageIO, no AppKit / no DB), **`TaskImageView`**, **`ImageViewer`** —
+  pasted images: normalise/thumbnail/crop/preview-file helpers and the crop maths (`dragging`, `moving`);
+  the note's small fixed-size thumbnail; and the image window (zoom via `ZoomScrollView`, crop via
+  `CropTrackingView`, both AppKit) — one reusable window owned by `NoteWindowManager`.
 - **App shell** — `TicApp` (`@main`) provides a `MenuBarExtra`; `AppDelegate`
   (`NSApplicationDelegateAdaptor`) builds the shared `AppDatabase` + `NoteWindowManager` and calls
   `restoreAll()` on launch. The app is a **hybrid**: Dock icon **and** menu bar item.
@@ -127,8 +128,10 @@ panels**, and a few responsibilities are deliberately split across the AppKit/Sw
   (also `stageImage`, which focuses the quick-add via `quickAddFocusRequest`). A staged image waits in
   the quick-add until **Return** adds it with the typed text; focus loss doesn't submit while one waits; `NSPasteboard.pastableImageData` decides image vs text (an
   image file wins; raw image data only when there's no plain text). An image keeps an empty-text task
-  from the blank-task delete. Quick Look uses `NotePanel` as the panel controller over a temp PNG of the
-  cropped image. Crop mode's mouse and keys are AppKit (`CropTrackingView`), SwiftUI only draws it: a
+  from the blank-task delete. Zoom and crop live only in the image window: an
+  in-note editor fought the row drag, hover affordances and note resizing, so the note just shows a
+  thumbnail whose size never depends on the note's width. Crop mode's mouse and keys are AppKit
+  (`CropTrackingView`), SwiftUI only draws it: a
   SwiftUI `DragGesture` there kept following the pointer after mouse-up, and SwiftUI focus never
   arrived, so ⏎ / ⎋ / click-away did nothing.
 - **Rendered Markdown is memoised (`MarkdownRenderCache`).** Parsing inline Markdown per line on
