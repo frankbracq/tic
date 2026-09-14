@@ -2,6 +2,24 @@
 
 All notable changes to Tic are documented here.
 
+## [0.4.0] - 2026-09-14
+
+### Features
+
+- Paste images into tasks
+- Crop pasted images
+- Hold pasted images in the quick-add until Return
+- Double-click an image to open it in Tic's own image window
+
+### Documentation
+
+- *(site)* Add landing page for tic.kasvith.me
+- Show the landing page preview in README [skip ci]
+
+### Miscellaneous Tasks
+
+- Skip Swift CI for site-only changes
+
 ## [0.3.0] - 2026-07-01
 
 ### Features
