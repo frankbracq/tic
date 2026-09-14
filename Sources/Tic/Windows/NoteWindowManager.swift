@@ -62,6 +62,9 @@ final class NoteWindowManager: NSObject, NSWindowDelegate {
         controller.onNewNote = { [weak self] in
             Task { await self?.newNote() }
         }
+        panel.onPasteImage = { [weak controller] data in
+            controller?.addTask("", imageData: data)
+        }
 
         ensureOnScreen(panel)
         if makeKey {

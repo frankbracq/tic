@@ -254,7 +254,11 @@ struct NoteView: View {
             onSubmit: { continueAdding(after: task) },
             onHoverChanged: { hovering in
                 if hovering { withAnimation(.easeInOut(duration: 0.12)) { activeSectionID = sectionRootID(of: task) } }
-            }
+            },
+            image: controller.imageCrops[task.id].map { crop in
+                TaskImageView(image: controller.thumbnails[task.id], crop: crop)
+            },
+            onPasteImage: { controller.attachImage($0, to: task) }
         )
         .padding(.horizontal, 12)
         .padding(.vertical, 1)
@@ -356,6 +360,11 @@ struct NoteView: View {
                 onOutdent: { adjustNewTaskLevel(by: -1) },
                 onFocusChange: { focused in
                     withAnimation(.easeInOut(duration: 0.15)) { quickAddFocused = focused }
+                },
+                onPasteImage: { data in
+                    // An image pasted here becomes a task, captioned with whatever has been typed so far.
+                    controller.addTask(newTaskText, level: effectiveNewTaskLevel, imageData: data)
+                    newTaskText = ""
                 }
             )
             .overlay(alignment: .topLeading) {

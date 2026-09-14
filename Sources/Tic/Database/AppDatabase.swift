@@ -90,6 +90,23 @@ final class AppDatabase: Sendable {
             }
         }
 
+        // A task's pasted image, in its own table (not columns on `task`) so the task observation —
+        // which re-fetches every row on each toggle/drag — never drags the blobs along, and so the crop
+        // gets its own targeted write that a whole-record task text commit can't clobber. The crop is
+        // normalised (0…1, top-left origin) over the untouched original. Cascades with its task.
+        migrator.registerMigration("v4_task_image") { db in
+            try db.create(table: "taskImage") { t in
+                t.primaryKey("taskId", .blob).notNull()
+                    .references("task", onDelete: .cascade)
+                t.column("data", .blob).notNull()
+                t.column("cropX", .double).notNull().defaults(to: 0)
+                t.column("cropY", .double).notNull().defaults(to: 0)
+                t.column("cropW", .double).notNull().defaults(to: 1)
+                t.column("cropH", .double).notNull().defaults(to: 1)
+                t.column("updatedAt", .datetime).notNull()
+            }
+        }
+
         return migrator
     }
 
@@ -219,7 +236,8 @@ final class AppDatabase: Sendable {
 
     /// Inserts a task assigning the next `sortIndex` (`MAX + 1` for the note) atomically inside the
     /// write, so a `tasks.count`-based index can't collide with a stale row after deletes leave gaps.
-    func insertTask(_ task: TaskItem) async throws {
+    /// `imageData`, if given, is stored as the task's image in the same transaction.
+    func insertTask(_ task: TaskItem, imageData: Data? = nil) async throws {
         let snapshot = task
         try await dbQueue.write { db in
             let maxIndex = try Int.fetchOne(
@@ -228,6 +246,7 @@ final class AppDatabase: Sendable {
             var stored = snapshot
             stored.sortIndex = maxIndex + 1
             try stored.insert(db)
+            if let imageData { try Self.writeImage(imageData, taskId: stored.id, db) }
         }
     }
 
@@ -308,6 +327,48 @@ final class AppDatabase: Sendable {
             .values(in: dbQueue)
     }
 
+    // MARK: - Task images
+
+    /// Stores (or replaces) a task's image. A replaced picture starts uncropped again.
+    func setTaskImage(taskId: UUID, data: Data) async throws {
+        try await dbQueue.write { db in try Self.writeImage(data, taskId: taskId, db) }
+    }
+
+    /// `INSERT OR REPLACE` swaps the whole row, so the crop columns fall back to their full-image defaults.
+    private static func writeImage(_ data: Data, taskId: UUID, _ db: Database) throws {
+        try db.execute(
+            sql: "INSERT OR REPLACE INTO taskImage (taskId, data, updatedAt) VALUES (?, ?, ?)",
+            arguments: [taskId, data, Date()]
+        )
+    }
+
+    /// The stored (original, uncropped) image bytes — read on demand, never via an observation.
+    func taskImageData(taskId: UUID) async throws -> Data? {
+        try await dbQueue.read { db in
+            try Data.fetchOne(db, sql: "SELECT data FROM taskImage WHERE taskId = ?", arguments: [taskId])
+        }
+    }
+
+    /// Emits the crop of every image in a note, keyed by task id. Deliberately never selects `data`, so
+    /// the blobs are only read on demand (`taskImageData`).
+    func observeTaskImageCrops(noteId: UUID) -> AsyncValueObservation<[UUID: CGRect]> {
+        ValueObservation
+            .tracking { db in
+                let rows = try Row.fetchAll(db, sql: """
+                    SELECT i.taskId, i.cropX, i.cropY, i.cropW, i.cropH
+                    FROM taskImage i JOIN task t ON t.id = i.taskId
+                    WHERE t.noteId = ?
+                    """, arguments: [noteId])
+                return Dictionary(uniqueKeysWithValues: rows.map { row in
+                    let crop = CGRect(
+                        x: row["cropX"] as Double, y: row["cropY"] as Double,
+                        width: row["cropW"] as Double, height: row["cropH"] as Double
+                    )
+                    return (row["taskId"] as UUID, crop)
+                })
+            }
+            .values(in: dbQueue)
+    }
 }
 
 /// One sample row for the welcome notes — a named type instead of a 3-tuple.

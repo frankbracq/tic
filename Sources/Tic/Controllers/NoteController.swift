@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 import Observation
 
@@ -10,9 +11,15 @@ final class NoteController {
     let noteID: UUID
     private(set) var note: Note
     private(set) var tasks: [TaskItem] = []
+    /// The crop of each task's image, keyed by task id — a key's presence means the task has an image.
+    private(set) var imageCrops: [UUID: CGRect] = [:]
+    /// Downsampled, uncropped bitmaps for drawing images on the note, loaded lazily per task.
+    private(set) var thumbnails: [UUID: CGImage] = [:]
 
     @ObservationIgnored private let db: AppDatabase
     @ObservationIgnored private var observation: Task<Void, Never>?
+    @ObservationIgnored private var imageObservation: Task<Void, Never>?
+    @ObservationIgnored private var loadingThumbnails: Set<UUID> = []
 
     /// Re-applies window behaviour (floatOnTop, showOnAllSpaces) to the live panel. Set by
     /// `NoteWindowManager` so the controller stays AppKit-free.
@@ -45,25 +52,52 @@ final class NoteController {
                 NSLog("[Tic] task observation ended for \(noteID): \(error)")
             }
         }
+        imageObservation?.cancel()
+        imageObservation = Task { [weak self, db, noteID] in
+            do {
+                for try await crops in db.observeTaskImageCrops(noteId: noteID) {
+                    self?.imageCrops = crops
+                    self?.syncThumbnails()
+                }
+            } catch {
+                NSLog("[Tic] image observation ended for \(noteID): \(error)")
+            }
+        }
     }
 
     func stop() {
         observation?.cancel()
         observation = nil
+        imageObservation?.cancel()
+        imageObservation = nil
     }
 
     // MARK: - Task actions
 
     /// Adds a task at the end. `level` is the requested nesting depth (from the quick-add field's
     /// pending indent); it's clamped to what the previous row allows so the outline stays valid.
-    func addTask(_ rawText: String, level: Int = 0) {
+    /// With `imageData` (a paste) the task carries that image, and its text may be empty.
+    func addTask(_ rawText: String, level: Int = 0, imageData: Data? = nil) {
         let text = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return }
+        guard !text.isEmpty || imageData != nil else { return }
         let maxLevel = tasks.last.map { min(TaskItem.maxIndentLevel, $0.indentLevel + 1) } ?? 0
         let clamped = min(max(level, 0), maxLevel)
         let task = TaskItem(noteId: noteID, text: text, sortIndex: tasks.count, indentLevel: clamped)
         tasks += [task]   // optimistic so the row appears instantly
-        Task { [db] in try? await db.insertTask(task) }   // insertTask assigns the real sortIndex (MAX+1)
+        if let imageData {
+            imageCrops[task.id] = TaskImage.fullCrop
+            loadThumbnail(task.id, data: imageData)
+        }
+        // insertTask assigns the real sortIndex (MAX+1)
+        Task { [db] in try? await db.insertTask(task, imageData: imageData) }
+    }
+
+    /// Pastes `data` onto `task` as its image, replacing any it had (a new picture starts uncropped).
+    func attachImage(_ data: Data, to task: TaskItem) {
+        let id = task.id
+        imageCrops[id] = TaskImage.fullCrop   // optimistic; the observation confirms
+        loadThumbnail(id, data: data)
+        Task { [db] in try? await db.setTaskImage(taskId: id, data: data) }
     }
 
     /// Inserts an empty subtask one level under `parent`, positioned right after `parent`'s existing
@@ -128,10 +162,10 @@ final class NoteController {
     func commitText(_ task: TaskItem, _ rawText: String) {
         // Trim only the outer whitespace/newlines; interior newlines are kept (multiline tasks).
         let text = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
-        // A blank (or whitespace-only) task is never kept — an abandoned new row just disappears.
-        // Checked before the "unchanged" guard so a freshly-added empty row (whose stored text is
-        // also empty) still gets removed on blur instead of lingering.
-        if text.isEmpty {
+        // A blank (or whitespace-only) task is never kept — an abandoned new row just disappears —
+        // unless it holds an image. Checked before the "unchanged" guard so a freshly-added empty row
+        // (whose stored text is also empty) still gets removed on blur instead of lingering.
+        if text.isEmpty, imageCrops[task.id] == nil {
             delete(task)
             return
         }
@@ -198,6 +232,34 @@ final class NoteController {
         let ordered = reorder ? updated : nil
         Task { [db] in
             try? await db.applyStructuralUpdate(deleteIds: deleteIds, reorder: ordered, levels: levels)
+        }
+    }
+
+    // MARK: - Image helpers
+
+    /// Keeps `thumbnails` in step with `imageCrops`: drops bitmaps for images that are gone and loads
+    /// any that are missing.
+    private func syncThumbnails() {
+        if thumbnails.keys.contains(where: { imageCrops[$0] == nil }) {
+            thumbnails = thumbnails.filter { imageCrops[$0.key] != nil }
+        }
+        for id in imageCrops.keys where thumbnails[id] == nil && !loadingThumbnails.contains(id) {
+            loadThumbnail(id)
+        }
+    }
+
+    /// Decodes `id`'s thumbnail off the main actor — from `data` when we already hold it (a paste),
+    /// otherwise read from the database — and publishes it unless the image was removed meanwhile.
+    /// Until it lands, a replaced image keeps showing its previous thumbnail rather than flashing empty.
+    private func loadThumbnail(_ id: UUID, data knownData: Data? = nil) {
+        loadingThumbnails.insert(id)
+        Task { [weak self, db] in
+            let data: Data?
+            if let knownData { data = knownData } else { data = try? await db.taskImageData(taskId: id) }
+            let thumbnail = await Task.detached { data.flatMap { TaskImage.thumbnail($0) } }.value
+            guard let self else { return }
+            loadingThumbnails.remove(id)
+            if imageCrops[id] != nil { thumbnails[id] = thumbnail }
         }
     }
 
