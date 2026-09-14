@@ -1,16 +1,14 @@
 import SwiftUI
 
-/// A task's pasted image, drawn under its text: the cropped thumbnail, fit to the text column and
-/// capped in height so a tall screenshot can't swallow the note. Hover reveals crop / Quick Look
-/// buttons; double-click opens Quick Look; right-click has the rest.
+/// A task's pasted image, drawn under its text: the cropped thumbnail, filling the text column — so
+/// resizing the note resizes it — but never past its real size, so a small image doesn't blur. Hover
+/// reveals crop / Quick Look buttons; double-click opens Quick Look; right-click has the rest.
 ///
 /// **Crop mode** shows the whole image with the discarded area dimmed and a bracket on each corner of
 /// the kept area: drag a bracket to resize, drag anywhere else to slide the crop. ⏎ (or click-away)
 /// keeps it, ⎋ cancels. The crop is only a normalised rect over the stored original — never destructive.
 /// Its gestures sit on views inside the row, so they take precedence over the row's reorder drag.
 struct TaskImageView: View {
-    static let maxHeight: CGFloat = 200
-
     /// The uncropped thumbnail; nil while it's still loading.
     let image: CGImage?
     let crop: CGRect
@@ -26,6 +24,7 @@ struct TaskImageView: View {
     /// `draftCrop` as it was when the current drag began — each drag applies its whole translation to it.
     @State private var dragStartCrop: CGRect?
     @FocusState private var cropFocused: Bool
+    @Environment(\.displayScale) private var displayScale
     // Memoises the cropped bitmap so a re-render (every frame of a drag) reuses the same image.
     @State private var cache = CroppedImageCache()
 
@@ -45,7 +44,7 @@ struct TaskImageView: View {
         Image(decorative: shown, scale: 1)
             .resizable()
             .aspectRatio(contentMode: .fit)
-            .frame(maxHeight: Self.maxHeight, alignment: .leading)
+            .frame(maxWidth: realWidth(shown), alignment: .leading)
             .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
             .overlay(alignment: .topTrailing) {
                 if hovering {
@@ -71,6 +70,11 @@ struct TaskImageView: View {
             }
     }
 
+    /// The width, in points, at which `image` shows at its real pixel size on this display.
+    private func realWidth(_ image: CGImage) -> CGFloat {
+        CGFloat(image.width) / max(displayScale, 1)
+    }
+
     /// A small glyph on a frosted disc, legible over any picture.
     private func glyphButton(_ symbol: String, help: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
@@ -90,7 +94,7 @@ struct TaskImageView: View {
             Image(decorative: image, scale: 1)
                 .resizable()
                 .aspectRatio(contentMode: .fit)
-                .frame(maxHeight: Self.maxHeight)
+                .frame(maxWidth: realWidth(image))
                 .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                 .overlay { GeometryReader { geo in cropOverlay(crop: crop, size: geo.size) } }
 
