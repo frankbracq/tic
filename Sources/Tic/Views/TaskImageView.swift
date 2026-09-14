@@ -40,11 +40,10 @@ struct TaskImageView: View {
     // MARK: - Display
 
     private func display(_ shown: CGImage) -> some View {
-        Image(decorative: shown, scale: 1)
-            .resizable()
-            .aspectRatio(contentMode: .fit)
-            .frame(maxHeight: Self.maxHeight, alignment: .leading)
-            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        AspectFit(image: shown, maxHeight: Self.maxHeight) {
+            Image(decorative: shown, scale: 1).resizable()
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
             .overlay(alignment: .topTrailing) {
                 if hovering {
                     HStack(spacing: 4) {
@@ -85,11 +84,10 @@ struct TaskImageView: View {
 
     private func cropEditor(_ image: CGImage, crop: CGRect) -> some View {
         VStack(alignment: .trailing, spacing: 6) {
-            Image(decorative: image, scale: 1)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(maxHeight: Self.maxHeight)
-                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            AspectFit(image: image, maxHeight: Self.maxHeight) {
+                Image(decorative: image, scale: 1).resizable()
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                 .overlay { GeometryReader { geo in cropOverlay(crop: crop, size: geo.size) } }
 
             HStack(spacing: 10) {
@@ -168,6 +166,24 @@ struct TaskImageView: View {
         guard let draft = draftCrop else { return }
         draftCrop = nil   // first, so the focus loss this triggers finds nothing left to save
         if save, draft != crop { onCrop(draft) }
+    }
+}
+
+/// Lays its content out at `image`'s aspect ratio, fit within the proposed width and `maxHeight`, and
+/// reports exactly that size. `.aspectRatio(contentMode: .fit)` + `.frame(maxHeight:)` reported the whole
+/// row's width instead, so the hover buttons, hover area and right-click area spread to the note's edge,
+/// far from the picture.
+struct AspectFit: Layout {
+    let image: CGImage
+    let maxHeight: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let aspect = image.height > 0 ? CGFloat(image.width) / CGFloat(image.height) : 1
+        return TaskImage.fittedSize(aspect: aspect, maxWidth: proposal.width ?? .infinity, maxHeight: maxHeight)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        for subview in subviews { subview.place(at: bounds.origin, proposal: ProposedViewSize(bounds.size)) }
     }
 }
 

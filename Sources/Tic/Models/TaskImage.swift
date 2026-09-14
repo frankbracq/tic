@@ -62,6 +62,14 @@ enum TaskImage {
         CGImageSourceCreateWithData(data as CFData, nil).flatMap { decode($0, maxPixelSize: maxPixelSize) }
     }
 
+    /// The size of an image with `aspect` (width ÷ height) fit within `maxWidth` × `maxHeight`.
+    static func fittedSize(aspect: CGFloat, maxWidth: CGFloat, maxHeight: CGFloat) -> CGSize {
+        guard aspect > 0 else { return .zero }
+        return aspect * maxHeight > maxWidth
+            ? CGSize(width: maxWidth, height: maxWidth / aspect)
+            : CGSize(width: aspect * maxHeight, height: maxHeight)
+    }
+
     /// `image` cropped to the normalised `crop`.
     static func cropped(_ image: CGImage, to crop: CGRect) -> CGImage? {
         let width = CGFloat(image.width), height = CGFloat(image.height)

@@ -86,6 +86,13 @@ struct TaskImageTests {
         #expect(averageColor(bottom) == (0, 255))
     }
 
+    @Test("an image fits the height cap, or the width when that's the tighter limit")
+    func fittedSize() {
+        #expect(TaskImage.fittedSize(aspect: 0.5, maxWidth: 600, maxHeight: 200) == CGSize(width: 100, height: 200))
+        #expect(TaskImage.fittedSize(aspect: 4, maxWidth: 400, maxHeight: 200) == CGSize(width: 400, height: 100))
+        #expect(TaskImage.fittedSize(aspect: 2, maxWidth: .infinity, maxHeight: 200) == CGSize(width: 400, height: 200))
+    }
+
     @Test("dragging a corner moves only that corner, clamped to the image")
     func draggingCorner() {
         let crop = TaskImage.dragging(TaskImage.fullCrop, corner: .topLeading, by: CGSize(width: 0.25, height: 0.5))
@@ -249,6 +256,31 @@ struct TaskImageDatabaseTests {
         let (db, note, task, _) = try await makeTaskWithImage()
         try await db.deleteNote(id: note.id)
         #expect(try await db.taskImageData(taskId: task.id) == nil)
+    }
+}
+
+// MARK: - Image layout
+
+@MainActor
+@Suite("Image layout")
+struct TaskImageLayoutTests {
+    /// The laid-out size of a task image offered `width` (and unlimited height, as in the note's list).
+    private func layoutSize(imageWidth: Int, imageHeight: Int, offered width: CGFloat) -> CGSize? {
+        let view = TaskImageView(
+            image: makeImage(width: imageWidth, height: imageHeight), crop: TaskImage.fullCrop,
+            theme: NoteTheme(color: .yellow, surface: .solid)
+        )
+        let renderer = ImageRenderer(content: view)
+        renderer.proposedSize = ProposedViewSize(width: width, height: nil)
+        renderer.scale = 1
+        return renderer.cgImage.map { CGSize(width: $0.width, height: $0.height) }
+    }
+
+    @Test("the image view is exactly the picture's size, not the row's width (so its hover buttons sit on it)")
+    func sizedToThePicture() {
+        #expect(layoutSize(imageWidth: 100, imageHeight: 50, offered: 600) == CGSize(width: 400, height: 200))
+        #expect(layoutSize(imageWidth: 100, imageHeight: 200, offered: 600) == CGSize(width: 100, height: 200))
+        #expect(layoutSize(imageWidth: 400, imageHeight: 100, offered: 200) == CGSize(width: 200, height: 50))
     }
 }
 
