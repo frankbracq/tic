@@ -1,4 +1,5 @@
 import AppKit
+import Quartz
 import SwiftUI
 
 /// A single sticky note window. A titled panel with a hidden, transparent title bar gives us
@@ -69,5 +70,48 @@ final class NotePanel: NSPanel {
     override func validateUserInterfaceItem(_ item: any NSValidatedUserInterfaceItem) -> Bool {
         if item.action == #selector(paste(_:)) { return NSPasteboard.general.hasPastableImage }
         return super.validateUserInterfaceItem(item)
+    }
+
+    // MARK: - Quick Look
+
+    /// The file Quick Look shows for this note (a temp PNG of the cropped image).
+    private var previewURL: URL?
+
+    /// Opens (or retargets) the shared Quick Look panel on `url`. Quick Look finds its controller in
+    /// the key window's responder chain, so the note makes itself key first — and, as a non-activating
+    /// panel, activates the app so the preview comes up in front rather than behind the frontmost app.
+    func showQuickLook(_ url: URL) {
+        previewURL = url
+        NSApp.activate()
+        makeKey()
+        guard let panel = QLPreviewPanel.shared() else { return }
+        if panel.isVisible {
+            panel.updateController()
+            panel.reloadData()
+        } else {
+            panel.makeKeyAndOrderFront(nil)
+        }
+    }
+
+    // Quick Look's controller hooks are a nonisolated NSObject category, but it only calls them on the
+    // main thread.
+    override func acceptsPreviewPanelControl(_ panel: QLPreviewPanel!) -> Bool {
+        MainActor.assumeIsolated { previewURL != nil }
+    }
+
+    override func beginPreviewPanelControl(_ panel: QLPreviewPanel!) {
+        MainActor.assumeIsolated { panel.dataSource = self }
+    }
+
+    override func endPreviewPanelControl(_ panel: QLPreviewPanel!) {
+        MainActor.assumeIsolated { panel.dataSource = nil }
+    }
+}
+
+extension NotePanel: @preconcurrency QLPreviewPanelDataSource {
+    func numberOfPreviewItems(in panel: QLPreviewPanel!) -> Int { previewURL == nil ? 0 : 1 }
+
+    func previewPanel(_ panel: QLPreviewPanel!, previewItemAt index: Int) -> (any QLPreviewItem)! {
+        previewURL as NSURL?
     }
 }
