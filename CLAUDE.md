@@ -128,7 +128,9 @@ panels**, and a few responsibilities are deliberately split across the AppKit/Sw
   the quick-add until **Return** adds it with the typed text; focus loss doesn't submit while one waits; `NSPasteboard.pastableImageData` decides image vs text (an
   image file wins; raw image data only when there's no plain text). An image keeps an empty-text task
   from the blank-task delete. Quick Look uses `NotePanel` as the panel controller over a temp PNG of the
-  cropped image.
+  cropped image. Crop mode's mouse and keys are AppKit (`CropTrackingView`), SwiftUI only draws it: a
+  SwiftUI `DragGesture` there kept following the pointer after mouse-up, and SwiftUI focus never
+  arrived, so ⏎ / ⎋ / click-away did nothing.
 - **Rendered Markdown is memoised (`MarkdownRenderCache`).** Parsing inline Markdown per line on
   every body re-eval made dragging janky (the whole list re-renders each frame); the cache re-parses
   only when a task's text/colour actually changes.

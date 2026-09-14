@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// A task's pasted image, drawn under its text: the cropped thumbnail, filling the text column — so
@@ -7,7 +8,7 @@ import SwiftUI
 /// **Crop mode** shows the whole image with the discarded area dimmed and a bracket on each corner of
 /// the kept area: drag a bracket to resize, drag anywhere else to slide the crop. ⏎ (or click-away)
 /// keeps it, ⎋ cancels. The crop is only a normalised rect over the stored original — never destructive.
-/// Its gestures sit on views inside the row, so they take precedence over the row's reorder drag.
+/// SwiftUI draws crop mode; `CropTrackingView` (AppKit) takes its mouse and keyboard.
 struct TaskImageView: View {
     /// The uncropped thumbnail; nil while it's still loading.
     let image: CGImage?
@@ -21,9 +22,6 @@ struct TaskImageView: View {
     @State private var hovering = false
     /// The crop being edited; non-nil exactly while in crop mode.
     @State private var draftCrop: CGRect?
-    /// `draftCrop` as it was when the current drag began — each drag applies its whole translation to it.
-    @State private var dragStartCrop: CGRect?
-    @FocusState private var cropFocused: Bool
     @Environment(\.displayScale) private var displayScale
     // Memoises the cropped bitmap so a re-render (every frame of a drag) reuses the same image.
     @State private var cache = CroppedImageCache()
@@ -103,45 +101,43 @@ struct TaskImageView: View {
                 hintButton(glyphs: "⎋", label: "cancel") { endCrop(save: false) }
             }
         }
-        .focusable()
-        .focusEffectDisabled()
-        .focused($cropFocused)
-        .onKeyPress(.return) { endCrop(save: true); return .handled }
-        .onKeyPress(.escape) { endCrop(save: false); return .handled }
-        .onAppear { cropFocused = true }
-        .onChange(of: cropFocused) { _, focused in
-            if !focused { endCrop(save: true) }   // clicking away keeps the crop
-        }
     }
 
-    /// The dimmed discard area, the kept-area outline, and the four corner brackets, in view points.
+    /// The dimmed discard area, the kept-area outline and the four corner brackets — drawn only; the
+    /// `CropInteraction` laid over them takes every click and key.
     private func cropOverlay(crop: CGRect, size: CGSize) -> some View {
         let box = CGRect(
             x: crop.minX * size.width, y: crop.minY * size.height,
             width: crop.width * size.width, height: crop.height * size.height
         )
         return ZStack {
-            Path { path in
-                path.addRect(CGRect(origin: .zero, size: size))
-                path.addRect(box)
-            }
-            .fill(Color.black.opacity(0.5), style: FillStyle(eoFill: true))
+            Group {
+                Path { path in
+                    path.addRect(CGRect(origin: .zero, size: size))
+                    path.addRect(box)
+                }
+                .fill(Color.black.opacity(0.5), style: FillStyle(eoFill: true))
 
-            Rectangle()
-                .strokeBorder(Color.white.opacity(0.9), lineWidth: 1)
-                .frame(width: box.width, height: box.height)
-                .position(x: box.midX, y: box.midY)
+                Rectangle()
+                    .strokeBorder(Color.white.opacity(0.9), lineWidth: 1)
+                    .frame(width: box.width, height: box.height)
+                    .position(x: box.midX, y: box.midY)
 
-            ForEach(TaskImage.Corner.allCases, id: \.self) { corner in
-                bracket(corner)
-                    .position(x: corner.isLeading ? box.minX : box.maxX, y: corner.isTop ? box.minY : box.maxY)
-                    .gesture(cropDrag(in: size) { TaskImage.dragging($0, corner: corner, by: $1) })
+                ForEach(TaskImage.Corner.allCases, id: \.self) { corner in
+                    bracket(corner)
+                        .position(x: corner.isLeading ? box.minX : box.maxX, y: corner.isTop ? box.minY : box.maxY)
+                }
             }
+            .allowsHitTesting(false)
+
+            CropInteraction(
+                crop: crop,
+                onChange: { draftCrop = $0 },
+                onDone: { endCrop(save: true) },
+                onCancel: { endCrop(save: false) }
+            )
         }
         .frame(width: size.width, height: size.height)
-        .contentShape(Rectangle())
-        // Dragging anywhere but a bracket slides the crop (and keeps the row's reorder drag out of it).
-        .gesture(cropDrag(in: size) { TaskImage.moving($0, by: $1) })
     }
 
     /// An L-shaped bracket whose vertex sits on the crop corner, arms pointing into the kept area.
@@ -156,23 +152,6 @@ struct TaskImageView: View {
         .stroke(Color.white, style: StrokeStyle(lineWidth: 3, lineCap: .square))
         .shadow(color: .black.opacity(0.4), radius: 1)
         .frame(width: side, height: side)
-        .contentShape(Rectangle())
-    }
-
-    /// A drag that rewrites the draft crop from where it stood when the drag began, with the translation
-    /// converted to normalised units.
-    private func cropDrag(in size: CGSize, _ apply: @escaping (CGRect, CGSize) -> CGRect) -> some Gesture {
-        DragGesture(minimumDistance: 0)
-            .onChanged { value in
-                guard size.width > 0, size.height > 0, let start = dragStartCrop ?? draftCrop else { return }
-                dragStartCrop = start
-                let delta = CGSize(
-                    width: value.translation.width / size.width,
-                    height: value.translation.height / size.height
-                )
-                draftCrop = apply(start, delta)
-            }
-            .onEnded { _ in dragStartCrop = nil }
     }
 
     /// A shortcut hint that's also clickable, so crop mode can be left with the mouse too.
@@ -192,7 +171,6 @@ struct TaskImageView: View {
     private func endCrop(save: Bool) {
         guard let draft = draftCrop else { return }
         draftCrop = nil   // first, so the focus loss this triggers finds nothing left to save
-        dragStartCrop = nil
         if save, draft != crop { onCrop(draft) }
     }
 }
@@ -211,5 +189,105 @@ final class CroppedImageCache {
         self.crop = crop
         value = TaskImage.cropped(image, to: crop)
         return value
+    }
+}
+
+// MARK: - Crop mode input (AppKit)
+
+/// Hosts `CropTrackingView` over the crop visuals, feeding it the current crop and callbacks.
+struct CropInteraction: NSViewRepresentable {
+    let crop: CGRect
+    let onChange: (CGRect) -> Void
+    let onDone: () -> Void
+    let onCancel: () -> Void
+
+    func makeNSView(context: Context) -> CropTrackingView { CropTrackingView() }
+
+    func updateNSView(_ view: CropTrackingView, context: Context) {
+        view.crop = crop
+        view.onChange = onChange
+        view.onDone = onDone
+        view.onCancel = onCancel
+    }
+}
+
+/// The mouse and keyboard half of crop mode — AppKit, not SwiftUI, on purpose. A SwiftUI `DragGesture`
+/// here could miss its mouse-up (the crop kept following the pointer after release, swallowing every
+/// later click), and SwiftUI focus never reliably reached the crop view (⏎ / ⎋ / click-away did
+/// nothing). AppKit always sends `mouseDragged`/`mouseUp` to the view that got the `mouseDown`, and a
+/// first responder gets its keys deterministically — the same reason the task editor is an `NSTextView`.
+/// Clicks landing here never reach the row's SwiftUI reorder drag either.
+final class CropTrackingView: NSView {
+    /// How close (in points) to a corner a press must land to drag that corner rather than slide the crop.
+    static let cornerReach: CGFloat = 14
+
+    var crop = TaskImage.fullCrop
+    var onChange: (CGRect) -> Void = { _ in }
+    var onDone: () -> Void = {}
+    var onCancel: () -> Void = {}
+
+    /// The drag in progress, from mouse-down to mouse-up.
+    private struct Drag {
+        let startCrop: CGRect
+        let startPoint: CGPoint
+        let corner: TaskImage.Corner?   // nil = sliding the whole crop
+    }
+    private var drag: Drag?
+
+    override var isFlipped: Bool { true }   // top-left origin, matching the normalised crop
+    override var acceptsFirstResponder: Bool { true }
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    /// Takes the keyboard as soon as crop mode appears, so ⏎ / ⎋ work without a click first.
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        window?.makeFirstResponder(self)
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        let point = convert(event.locationInWindow, from: nil)
+        drag = Drag(startCrop: crop, startPoint: point, corner: corner(near: point))
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard let drag, bounds.width > 0, bounds.height > 0 else { return }
+        let point = convert(event.locationInWindow, from: nil)
+        let delta = CGSize(
+            width: (point.x - drag.startPoint.x) / bounds.width,
+            height: (point.y - drag.startPoint.y) / bounds.height
+        )
+        if let corner = drag.corner {
+            onChange(TaskImage.dragging(drag.startCrop, corner: corner, by: delta))
+        } else {
+            onChange(TaskImage.moving(drag.startCrop, by: delta))
+        }
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        drag = nil
+    }
+
+    override func keyDown(with event: NSEvent) {
+        switch event.keyCode {
+        case 36, 76: onDone()     // Return, keypad Enter
+        case 53: onCancel()       // Escape
+        default: super.keyDown(with: event)
+        }
+    }
+
+    /// Clicking away (another task, the list background) takes first responder elsewhere — keep the crop.
+    override func resignFirstResponder() -> Bool {
+        let resigned = super.resignFirstResponder()
+        if resigned { onDone() }
+        return resigned
+    }
+
+    /// The crop corner within `cornerReach` of `point`, if any.
+    private func corner(near point: CGPoint) -> TaskImage.Corner? {
+        TaskImage.Corner.allCases.first { corner in
+            let x = (corner.isLeading ? crop.minX : crop.maxX) * bounds.width
+            let y = (corner.isTop ? crop.minY : crop.maxY) * bounds.height
+            return abs(point.x - x) <= Self.cornerReach && abs(point.y - y) <= Self.cornerReach
+        }
     }
 }

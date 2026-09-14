@@ -252,6 +252,87 @@ struct TaskImageDatabaseTests {
     }
 }
 
+// MARK: - Crop mode input
+
+/// Crop mode's AppKit input view, driven with real `NSEvent`s — the mouse-up and keyboard handling that
+/// the earlier SwiftUI gesture/focus version got wrong in the live app.
+@MainActor
+@Suite("Crop mode input")
+struct CropTrackingViewTests {
+    private final class Recorder {
+        var crops: [CGRect] = []
+        var done = 0
+        var cancelled = 0
+    }
+
+    /// A 200×100 crop view as a window's content, reporting into a recorder.
+    private func makeView(crop: CGRect = TaskImage.fullCrop) -> (NSWindow, CropTrackingView, Recorder) {
+        _ = NSApplication.shared
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 200, height: 100),
+            styleMask: [.titled], backing: .buffered, defer: false
+        )
+        let view = CropTrackingView()
+        let recorder = Recorder()
+        view.crop = crop
+        view.onChange = { recorder.crops.append($0) }
+        view.onDone = { recorder.done += 1 }
+        view.onCancel = { recorder.cancelled += 1 }
+        window.contentView = view
+        return (window, view, recorder)
+    }
+
+    /// A mouse event at `point` in the view's own (top-left origin) coordinates.
+    private func mouse(_ type: NSEvent.EventType, _ point: CGPoint, _ view: NSView) -> NSEvent {
+        NSEvent.mouseEvent(
+            with: type, location: view.convert(point, to: nil), modifierFlags: [], timestamp: 0,
+            windowNumber: view.window!.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1
+        )!
+    }
+
+    private func key(_ code: UInt16, _ view: NSView) -> NSEvent {
+        NSEvent.keyEvent(
+            with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0,
+            windowNumber: view.window!.windowNumber, context: nil, characters: "", charactersIgnoringModifiers: "",
+            isARepeat: false, keyCode: code
+        )!
+    }
+
+    @Test("dragging a corner resizes from where the drag began, and stops at mouse-up")
+    func cornerDragEndsOnMouseUp() {
+        let (_, view, recorder) = makeView()
+        view.mouseDown(with: mouse(.leftMouseDown, CGPoint(x: 2, y: 2), view))   // near the top-leading corner
+        view.mouseDragged(with: mouse(.leftMouseDragged, CGPoint(x: 52, y: 27), view))
+        #expect(recorder.crops == [CGRect(x: 0.25, y: 0.25, width: 0.75, height: 0.75)])
+
+        view.mouseUp(with: mouse(.leftMouseUp, CGPoint(x: 52, y: 27), view))
+        view.mouseDragged(with: mouse(.leftMouseDragged, CGPoint(x: 150, y: 80), view))
+        #expect(recorder.crops.count == 1)   // released: nothing follows the pointer any more
+    }
+
+    @Test("dragging away from the corners slides the crop")
+    func slide() {
+        let (_, view, recorder) = makeView(crop: CGRect(x: 0.25, y: 0.25, width: 0.5, height: 0.5))
+        view.mouseDown(with: mouse(.leftMouseDown, CGPoint(x: 100, y: 50), view))
+        view.mouseDragged(with: mouse(.leftMouseDragged, CGPoint(x: 125, y: 50), view))
+        #expect(recorder.crops == [CGRect(x: 0.375, y: 0.25, width: 0.5, height: 0.5)])
+    }
+
+    @Test("crop mode takes the keyboard: Return keeps, Escape cancels, clicking away keeps")
+    func keysAndClickAway() {
+        let (window, view, recorder) = makeView()
+        #expect(window.firstResponder === view)
+
+        view.keyDown(with: key(36, view))
+        #expect(recorder.done == 1)
+        view.keyDown(with: key(53, view))
+        #expect(recorder.cancelled == 1)
+
+        window.makeFirstResponder(nil)   // what clicking the list background does
+        #expect(recorder.done == 2)
+    }
+}
+
 // MARK: - Controller
 
 @MainActor
