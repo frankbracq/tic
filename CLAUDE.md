@@ -18,6 +18,8 @@ open Package.swift          # opens the package in Xcode for GUI editing / previ
 ./scripts/package.sh        # build release + assemble dist/Tic.app (add --open to launch it)
 ```
 
+- **Landing page** (tic.kasvith.me) is a self-contained Astro + pnpm project in `site/` — all Node
+  tooling stays there (see `site/README.md`); never add JS files to the repo root.
 - **Verification** is a clean `swift build`, `swift test` (Swift Testing — `AppDatabaseTests`,
   `TaskOutlineTests`, `NoteColorTests`), plus running the app. The outline logic lives in pure,
   testable functions (`TaskOutline`) precisely so it can be covered without a DB or the main actor.

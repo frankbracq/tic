@@ -1,0 +1,336 @@
+---
+import Base from '../layouts/Base.astro';
+import Note, { type Task } from './Note.astro';
+import Palette from './Palette.astro';
+import Icon from './Icon.astro';
+import { site, release, features, shortcuts, faqs, welcomeTasks, weekTasks, groceryTasks } from '../data/site';
+
+const id = (name: string) => `${site.url}/#${name}`;
+const ogImage = { '@type': 'ImageObject', url: `${site.url}/og.png`, width: 1200, height: 630 };
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    { '@type': 'Person', '@id': id('author'), name: site.author.name, url: site.author.url, sameAs: [site.author.github] },
+    { '@type': 'WebSite', '@id': id('website'), url: `${site.url}/`, name: site.name, description: site.description, inLanguage: 'en', publisher: { '@id': id('author') } },
+    {
+      '@type': 'WebPage',
+      '@id': id('webpage'),
+      url: `${site.url}/`,
+      name: site.title,
+      description: site.description,
+      inLanguage: 'en',
+      isPartOf: { '@id': id('website') },
+      about: { '@id': id('app') },
+      primaryImageOfPage: ogImage,
+      dateModified: release?.date,
+    },
+    {
+      '@type': 'SoftwareApplication',
+      '@id': id('app'),
+      name: site.name,
+      url: `${site.url}/`,
+      description: site.summary,
+      applicationCategory: 'DesktopEnhancementApplication',
+      applicationSubCategory: 'To-do list',
+      operatingSystem: 'macOS',
+      softwareRequirements: 'macOS 14 Sonoma or later',
+      softwareVersion: release?.version,
+      dateModified: release?.date,
+      downloadUrl: site.download,
+      releaseNotes: site.changelog,
+      license: 'https://opensource.org/licenses/MIT',
+      isAccessibleForFree: true,
+      offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+      image: `${site.url}/icon.png`,
+      screenshot: ogImage,
+      featureList: features.map((f) => f.title),
+      keywords: site.keywords.join(', '),
+      author: { '@id': id('author') },
+      publisher: { '@id': id('author') },
+      sameAs: [site.repo],
+    },
+    {
+      '@type': 'FAQPage',
+      '@id': id('faq'),
+      isPartOf: { '@id': id('webpage') },
+      mainEntity: faqs.map((f) => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
+    },
+  ],
+};
+
+const tripTasks: Task[] = [
+  { t: 'Plan the trip' },
+  { t: 'Book flights', l: 1, done: true },
+  { t: 'Find a hotel near the <strong>old town</strong>', l: 1 },
+  { t: 'Shortlist three', l: 2, done: true },
+  { t: 'Read the <a href="#subtasks">reviews</a>', l: 2 },
+  { t: 'Pack\n<em>charger, passport, adapter</em>', editing: true, hint: ['⇧⇥', 'nest'] },
+];
+const tidyTasks: Task[] = [
+  { t: 'Oat milk' },
+  { t: 'Coffee beans' },
+  { t: 'Lemons ×3' },
+  { t: 'Sourdough', done: true },
+  { t: 'Eggs', done: true },
+];
+const colors = [
+  ['yellow', 'Yellow', '#ffe675'],
+  ['pink', 'Pink', '#ffc7d6'],
+  ['blue', 'Blue', '#b3dbff'],
+  ['green', 'Green', '#c2edbd'],
+  ['purple', 'Purple', '#d6c9f7'],
+  ['graphite', 'Graphite', '#dbdee6'],
+];
+
+const lede = 'Tic puts each list in its own sticky note on your Mac desktop, so what you need to do stays in view. Tick things off, drag notes where you want them, and get back to work.';
+const btn = 'inline-flex items-center gap-2 bg-accent px-5 py-3 font-semibold text-on-accent transition hover:brightness-110 rounded-xl justify-center';
+const btnGhost = 'inline-flex items-center gap-2 px-5 py-3 font-semibold ring-1 ring-line transition hover:bg-surface rounded-xl justify-center';
+const h2 = 'font-display text-[clamp(2rem,4.5vw,3.25rem)] leading-[1.04] tracking-[-0.025em] text-balance font-extrabold';
+const panel = 'relative grid place-items-center overflow-hidden rounded-2xl px-4 py-8 bg-surface ring-1 ring-line sm:min-h-[22rem] sm:rounded-3xl sm:p-10';
+const kbd = 'inline-grid min-w-8 place-items-center rounded-md bg-surface px-2 py-1 font-sans text-sm font-medium ring-1 ring-line shadow-[0_1px_0_var(--line)]';
+---
+
+<Base jsonLd={jsonLd}>
+  <a href="#main" class="sr-only z-50 rounded bg-accent px-3 py-2 text-on-accent focus:not-sr-only focus:fixed focus:left-4 focus:top-4">Skip to content</a>
+
+  <header class="mx-auto flex max-w-6xl items-center gap-8 px-5 py-5">
+    <a href="/" class="flex items-center gap-2.5 font-display text-xl font-bold tracking-tight">
+      <img src="/icon.png" alt="" width="36" height="36" class="size-9" />
+      Tic
+    </a>
+    <nav aria-label="Primary" class="hidden items-center gap-7 text-[0.95rem] text-muted md:flex">
+      <a href="#features" class="hover:text-fg">Features</a>
+      <a href="#shortcuts" class="hover:text-fg">Shortcuts</a>
+      <a href="#install" class="hover:text-fg">Install</a>
+      <a href="#faq" class="hover:text-fg">FAQ</a>
+    </nav>
+    <div class="ml-auto flex items-center gap-4">
+      <a href={site.repo} class="flex items-center gap-1.5 text-[0.95rem] text-muted hover:text-fg" aria-label="Tic on GitHub"><Icon name="github-logo" class="size-5" /><span class="max-sm:hidden">GitHub</span></a>
+      <a href={site.download} class:list={[btn, 'px-4 py-2 text-sm']}>Download</a>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="mx-auto grid max-w-6xl items-center gap-10 px-5 pb-14 pt-6 sm:pb-24 sm:pt-8 lg:grid-cols-[1.1fr_1fr] lg:gap-14 lg:pt-16">
+      <div>
+        <p aria-hidden="true" class="headline-line flex items-center gap-3 font-display text-[clamp(1.25rem,2.6vw,2rem)] font-bold text-muted" data-done>
+          <span class="tick"><Icon name="check-circle-fill" /></span>
+          <s class="decoration-2">Lists hidden in the menu bar</s>
+        </p>
+        <h1 class="headline-line mt-4 flex items-start gap-2 font-display text-[clamp(2.6rem,6.4vw,5rem)] font-extrabold leading-[0.95] tracking-[-0.035em] text-balance sm:gap-4">
+          <button type="button" data-tick class="tick" aria-label="Tick it off">
+            <Icon name="circle" class="off" /><Icon name="check-circle-fill" class="on" />
+          </button>
+          <span>To-do lists that live on your desktop</span>
+        </h1>
+        <p class="mt-5 max-w-xl leading-relaxed text-muted text-pretty sm:mt-7 sm:text-lg">{lede}</p>
+        <div class="mt-7 flex flex-wrap gap-3 sm:mt-9">
+          <a href={site.download} class:list={[btn, 'max-sm:w-full']}><Icon name="download-simple" class="size-5" />Download for Mac</a>
+          <a href={site.repo} class:list={[btnGhost, 'max-sm:w-full']}><Icon name="github-logo" class="size-5" />View source on GitHub</a>
+        </div>
+        <p class="mt-5 text-sm text-muted">Free and open source{release && `, version ${release.version}`}. Needs macOS 14 Sonoma or later.</p>
+      </div>
+      <div class="relative mx-auto w-full max-w-[34rem] sm:h-[33rem]">
+        <Note class="max-sm:hidden sm:absolute sm:right-0 sm:top-0" title="This week" color="pink" tasks={weekTasks} quick={false} width="15.5em" />
+        <Note class="relative z-10 max-sm:[--w:100%]! sm:absolute sm:left-0 sm:top-10" title="Welcome to Tic 👋" tasks={welcomeTasks} revealed interactive width="22em" />
+        <Note class="relative z-20 -mt-12 ml-auto max-sm:[--w:65%]! sm:absolute sm:bottom-14 sm:right-2 sm:mt-0" title="Groceries" color="blue" tasks={groceryTasks} interactive quickHint width="15.5em" />
+        <Note class="z-20 max-sm:hidden sm:absolute sm:bottom-0 sm:left-10" title="Someday" color="graphite" collapsed count={12} width="18em" />
+      </div>
+    </section>
+
+    <section id="features" class="mx-auto max-w-6xl scroll-mt-8 px-5 py-12 sm:py-20">
+      <h2 class:list={[h2, 'max-w-3xl']}>A to-do list you can see without going looking for it</h2>
+      <div class="mt-10 flex flex-col gap-14 sm:mt-16 sm:gap-24">
+        {features.map((f, i) => (
+          <article id={f.id} class="grid scroll-mt-8 items-center gap-6 lg:grid-cols-2 lg:gap-16">
+            <div class:list={['max-w-lg', { 'lg:order-2': i % 2 }]}>
+              <h3 class="font-display text-[clamp(1.5rem,2.6vw,2rem)] leading-tight tracking-[-0.02em] font-bold">{f.title}</h3>
+              <p class="mt-3 leading-relaxed text-muted sm:mt-4 sm:text-lg">{f.body}</p>
+            </div>
+
+            {f.id === 'float' && (
+              <div class={panel}>
+                <div class="flex flex-col items-center gap-3">
+                  <Note title="This week" color="pink" tasks={weekTasks} revealed pinned quick={false} width="19em" style="font-size:14px" />
+                  <Note title="Reading list" color="purple" collapsed count={4} width="19em" style="font-size:14px" />
+                  <Note title="Someday" color="graphite" collapsed count={12} width="19em" style="font-size:14px" />
+                </div>
+              </div>
+            )}
+
+            {f.id === 'subtasks' && (
+              <div class={panel}>
+                <Note title="Kandy weekend" color="green" tasks={tripTasks} addSub={{ after: 4, level: 1 }} interactive quick={false} width="21em" style="font-size:14px" />
+              </div>
+            )}
+
+            {f.id === 'look' && (
+              <div class={panel} style="background: var(--wallpaper)">
+                <div class="flex flex-col items-center gap-6">
+                  <Note id="look-note" title="Groceries" color="blue" material="glass" tasks={groceryTasks} interactive quick={false} width="17em" style="font-size:14px" />
+                  <div class="flex flex-wrap items-center justify-center gap-4 rounded-2xl bg-white/60 px-4 py-3 text-black shadow-lg ring-1 ring-black/5 backdrop-blur-xl">
+                    <div role="group" aria-label="Note colour" class="flex gap-2">
+                      {colors.map(([id, name, fill]) => (
+                        <button type="button" data-set={`color=${id}`} data-target="look-note" aria-pressed={id === 'blue' ? 'true' : 'false'} aria-label={name} title={name} class="size-7 rounded-full ring-1 ring-black/15 transition aria-pressed:ring-[2.5px] aria-pressed:ring-black/60" style={`background:${fill}`} />
+                      ))}
+                    </div>
+                    <div role="group" aria-label="Note material" class="flex rounded-full bg-black/5 p-1 text-sm font-medium">
+                      <button type="button" data-set="material=solid" data-target="look-note" aria-pressed="false" class="rounded-full px-3 py-1 aria-pressed:bg-white aria-pressed:shadow">Solid</button>
+                      <button type="button" data-set="material=glass" data-target="look-note" aria-pressed="true" class="rounded-full px-3 py-1 aria-pressed:bg-white aria-pressed:shadow">Glass</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {f.id === 'search' && (
+              <div class={panel} style="background: var(--wallpaper)">
+                <Palette class="text-[12px] sm:text-[13px]" />
+              </div>
+            )}
+
+            {f.id === 'tidy' && (
+              <div class={panel}>
+                <div class="relative pt-2 sm:-translate-x-14">
+                  <Note title="Groceries" color="yellow" tasks={tidyTasks} revealed quick={false} width="19em" style="font-size:14px" />
+                  <div class="z-10 w-60 max-sm:mt-3 max-sm:w-full sm:absolute sm:left-[9.5rem] sm:top-[4.6rem] rounded-xl bg-white/90 p-3.5 text-[13px] text-black/85 shadow-xl ring-1 ring-black/10 backdrop-blur-xl" aria-hidden="true">
+                    <div class="flex items-center justify-between py-1">Hide completed <span class="h-4 w-7 rounded-full bg-black/15 p-0.5"><span class="block size-3 rounded-full bg-white shadow" /></span></div>
+                    <div class="mt-2 flex items-center justify-between py-1">Move completed to bottom <span class="flex h-4 w-7 justify-end rounded-full bg-[#c79e1a] p-0.5"><span class="block size-3 rounded-full bg-white shadow" /></span></div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {f.id === 'private' && (
+              <div class={panel}>
+                <figure class="w-full max-w-md overflow-hidden rounded-2xl bg-[#1e2027] text-left text-[11.5px] text-white/85 sm:text-[13px] shadow-2xl ring-1 ring-black/20">
+                  <div class="flex gap-2 px-4 py-3" aria-hidden="true"><span class="size-3 rounded-full bg-[#ff5f57]" /><span class="size-3 rounded-full bg-[#febc2e]" /><span class="size-3 rounded-full bg-[#28c840]" /></div>
+                  <pre class="whitespace-pre-wrap break-all px-4 pb-4 font-mono leading-relaxed sm:px-5 sm:pb-5"><code><span class="text-white/45">$</span> sqlite3 ~/Library/Application\ Support/Tic/tic.sqlite \
+    "SELECT title FROM note;"
+Welcome to Tic 👋
+Ship v0.4
+Groceries</code></pre>
+                  <figcaption class="sr-only">Reading Tic’s local database with the sqlite3 command</figcaption>
+                </figure>
+              </div>
+            )}
+          </article>
+        ))}
+      </div>
+    </section>
+
+    <section id="shortcuts" class="scroll-mt-8 border-y border-line bg-surface/60 py-12 sm:py-20">
+      <div class="mx-auto grid max-w-6xl gap-8 px-5 lg:grid-cols-[1fr_1.3fr] lg:gap-12">
+        <div>
+          <h2 class={h2}>Keep your hands on the keyboard</h2>
+          <p class="mt-5 max-w-md text-lg leading-relaxed text-muted">Tic shows the shortcut you need right in the field while you type, so you don’t have to memorise this list.</p>
+        </div>
+        <dl class="divide-y divide-line">
+          {shortcuts.map((s) => (
+            <div class="flex items-center justify-between gap-4 py-3 sm:py-4">
+              <dt class="sm:text-lg">{s.action}</dt>
+              <dd class="flex shrink-0 gap-1.5">{s.keys.map((k) => <kbd class={kbd}>{k}</kbd>)}</dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+    </section>
+
+    <section id="install" class="mx-auto max-w-6xl scroll-mt-8 px-5 py-12 sm:py-20">
+      <h2 class={h2}>Install Tic</h2>
+      <ol class="mt-8 grid gap-8 sm:mt-12 md:grid-cols-3 md:gap-10">
+        <li>
+          <h3 class="text-lg font-semibold">1. Download</h3>
+          <p class="mt-2 text-muted">Get the <code class="text-fg">.dmg</code> or <code class="text-fg">.zip</code> from the <a href={site.download} class="text-fg underline underline-offset-4">latest release on GitHub</a> and move Tic.app to Applications.</p>
+        </li>
+        <li>
+          <h3 class="text-lg font-semibold">2. Allow it to open</h3>
+          <p class="mt-2 text-muted">Tic isn’t notarized yet, so clear the quarantine flag once in Terminal:</p>
+          <div class="mt-3 flex items-center gap-2 rounded-xl bg-[#1e2027] py-2 pl-4 pr-2 font-mono text-sm text-white">
+            <code class="flex-1 overflow-x-auto whitespace-nowrap">xattr -rc /Applications/Tic.app</code>
+            <button type="button" data-copy="xattr -rc /Applications/Tic.app" class="rounded-lg bg-white/10 px-3 py-1.5 font-sans text-xs font-semibold hover:bg-white/20">Copy</button>
+          </div>
+        </li>
+        <li>
+          <h3 class="text-lg font-semibold">3. Make your first list</h3>
+          <p class="mt-2 text-muted">Open Tic and press <kbd class={kbd}>⌘</kbd> <kbd class={kbd}>N</kbd>. Turn on Launch at Login from the menu bar icon to keep your notes there after a restart.</p>
+        </li>
+      </ol>
+
+      {release && (
+        <div class="mt-12 rounded-2xl bg-surface p-6 ring-1 ring-line sm:mt-16 sm:rounded-3xl sm:p-8">
+          <h3 class="font-display text-2xl tracking-tight font-bold">What’s new in {release.version}</h3>
+          <p class="mt-1 text-sm text-muted">Released <time datetime={release.date}>{new Date(release.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</time></p>
+          <ul class="mt-4 list-disc space-y-1 pl-5">{release.notes.map((n) => <li>{n}</li>)}</ul>
+          <a href={site.changelog} class="mt-4 inline-block text-sm font-semibold underline underline-offset-4">Read the full changelog</a>
+        </div>
+      )}
+    </section>
+
+    <section id="faq" class="mx-auto max-w-3xl scroll-mt-8 px-5 py-12 sm:py-20">
+      <h2 class={h2}>Questions</h2>
+      <div class="mt-10 divide-y divide-line border-y border-line">
+        {faqs.map((f) => (
+          <details class="group py-5">
+            <summary class="flex cursor-pointer list-none items-center justify-between gap-6 font-medium sm:text-lg">
+              {f.q}
+              <Icon name="plus" class="size-5 shrink-0 text-muted transition group-open:rotate-45" />
+            </summary>
+            <p class="mt-3 leading-relaxed text-muted">{f.a}</p>
+          </details>
+        ))}
+      </div>
+    </section>
+
+    <section class="px-5 py-16 text-center sm:py-24">
+      <img src="/icon.png" alt="Tic app icon" width="112" height="112" loading="lazy" class="mx-auto size-28" />
+      <h2 class:list={[h2, 'mx-auto mt-6 max-w-2xl']}>Put your next list on the desktop</h2>
+      <div class="mt-8 flex flex-wrap justify-center gap-3">
+        <a href={site.download} class:list={[btn, 'max-sm:w-full']}><Icon name="download-simple" class="size-5" />Download for Mac</a>
+        <a href={site.repo} class:list={[btnGhost, 'max-sm:w-full']}><Icon name="github-logo" class="size-5" />Star on GitHub</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="border-t border-line">
+    <div class="mx-auto flex max-w-6xl flex-wrap items-center gap-x-8 gap-y-3 px-5 py-8 text-sm text-muted">
+      <p>Tic is made by <a href={site.author.url} class="text-fg hover:underline">{site.author.name}</a> and released under the MIT license.</p>
+      <nav aria-label="Footer" class="flex gap-6 sm:ml-auto">
+        <a href={site.repo} class="hover:text-fg">GitHub</a>
+        <a href={site.download} class="hover:text-fg">Releases</a>
+        <a href={site.changelog} class="hover:text-fg">Changelog</a>
+      </nav>
+    </div>
+  </footer>
+</Base>
+
+<script>
+  document.addEventListener('click', (event) => {
+    const target = event.target as Element;
+
+    const check = target.closest('button.cb, button[data-tick]');
+    if (check) {
+      const row = check.closest('.task, .headline-line')!;
+      const done = !row.hasAttribute('data-done');
+      row.toggleAttribute('data-done', done);
+      check.setAttribute('aria-pressed', String(done));
+      return;
+    }
+
+    const setter = target.closest<HTMLElement>('[data-set]');
+    if (setter) {
+      const [key, value] = setter.dataset.set!.split('=');
+      document.getElementById(setter.dataset.target!)!.dataset[key] = value;
+      setter.parentElement!.querySelectorAll('[data-set]').forEach((b) => b.setAttribute('aria-pressed', String(b === setter)));
+      return;
+    }
+
+    const copy = target.closest<HTMLButtonElement>('[data-copy]');
+    if (copy) {
+      navigator.clipboard.writeText(copy.dataset.copy!).then(() => {
+        copy.textContent = 'Copied';
+        setTimeout(() => (copy.textContent = 'Copy'), 1500);
+      });
+    }
+  });
+</script>

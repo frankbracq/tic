@@ -1,0 +1,19 @@
+---
+// Source for the 1200×630 social card at public/og.png (see README to regenerate).
+import Base from '../layouts/Base.astro';
+import Desktop from '../components/Desktop.astro';
+---
+
+<Base title="Tic social card" noindex>
+  <div class="relative h-[630px] w-[1200px] overflow-hidden bg-bg">
+    <div class="absolute left-16 top-16 w-[500px]">
+      <div class="flex items-center gap-3 font-display text-4xl font-bold tracking-tight">
+        <img src="/icon.png" width="64" height="64" alt="" />
+        Tic
+      </div>
+      <p class="mt-12 font-display text-[64px] font-extrabold leading-[0.95] tracking-[-0.04em]">To-do lists that live on your desktop</p>
+      <p class="mt-6 text-2xl text-muted">Free, open-source sticky notes for macOS</p>
+    </div>
+    <Desktop class="absolute left-[590px] top-16 w-[1000px]" />
+  </div>
+</Base>

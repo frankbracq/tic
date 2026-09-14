@@ -1,0 +1,16 @@
+---
+import Base from '../layouts/Base.astro';
+import Note from '../components/Note.astro';
+---
+
+<Base title="Page not found | Tic" noindex>
+  <main class="grid min-h-dvh place-items-center px-6">
+    <h1 class="sr-only">Page not found</h1>
+    <Note
+      title="Page not found"
+      tasks={[{ t: 'Look for this page', done: true }, { t: '<a href="/">Go back to the Tic home page</a>' }]}
+      quick={false}
+      style="font-size:16px"
+    />
+  </main>
+</Base>

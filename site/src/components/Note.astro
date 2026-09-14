@@ -1,0 +1,113 @@
+---
+// An HTML replica of Tic's NoteView (header strip, checklist, quick-add, roll-up bar).
+// Task text is trusted, hand-written HTML standing in for the app's inline Markdown.
+import Icon from './Icon.astro';
+export type NoteColor = 'yellow' | 'pink' | 'blue' | 'green' | 'purple' | 'graphite';
+export interface Task {
+  t: string;
+  l?: number;
+  done?: boolean;
+  hover?: boolean;
+  editing?: boolean;
+  hint?: [string, string];
+}
+export interface Props {
+  title: string;
+  color?: NoteColor;
+  material?: 'solid' | 'glass';
+  tasks?: Task[];
+  collapsed?: boolean;
+  count?: number;
+  revealed?: boolean;
+  pinned?: boolean;
+  addSub?: { after: number; level: number };
+  quick?: string | false;
+  quickHint?: boolean;
+  interactive?: boolean;
+  width?: string;
+  class?: string;
+  style?: string;
+  id?: string;
+}
+
+const {
+  title, color = 'yellow', material = 'solid', tasks = [], collapsed = false, count,
+  revealed = false, pinned = false, addSub, quick = 'Add a task…', quickHint = false,
+  interactive = false, width, class: cls, style, id,
+} = Astro.props;
+
+const glass = material === 'glass';
+const remaining = count ?? tasks.filter((task) => !task.done).length;
+const plain = (html: string) => html.replace(/<[^>]+>/g, '');
+---
+
+<div
+  id={id}
+  class:list={['note', cls]}
+  style={[width && `--w:${width}`, style].filter(Boolean).join(';') || undefined}
+  data-color={color}
+  data-material={material}
+  data-revealed={revealed || undefined}
+>
+  {collapsed ? (
+    <div class="note-bar">
+      <span class="note-title">{title}</span>
+      {remaining > 0 && <span class="count">{remaining}</span>}
+    </div>
+  ) : (
+    <>
+      <div class="note-head">
+        <div class="note-strip" aria-hidden="true">
+          <span class="ic"><Icon name="plus" /></span>
+          <span class="ic"><span class="sw" /></span>
+          <span class:list={['ic', { on: glass }]}><Icon name={glass ? 'sparkle-fill' : 'sparkle'} /></span>
+          <span class="ic"><Icon name="funnel-simple" /></span>
+          {tasks.some((task) => task.done) && <span class="ic"><Icon name="magic-wand" /></span>}
+          <span class="flex-1" />
+          <span class="ic"><Icon name="caret-up" /></span>
+          <span class:list={['ic', { on: pinned }]}><Icon name={pinned ? 'push-pin-fill' : 'push-pin'} /></span>
+          <span class="ic"><Icon name="x" /></span>
+        </div>
+        <div class="note-title">{title}</div>
+        <div class="note-rule" />
+      </div>
+      <div class="note-list">
+        {tasks.map((task, i) => (
+          <>
+            <div
+              class="task"
+              style={`--l:${task.l ?? 0}`}
+              data-done={task.done || undefined}
+              data-hover={task.hover || undefined}
+              data-editing={task.editing || undefined}
+            >
+              {interactive ? (
+                <button type="button" class="cb" aria-pressed={task.done ? 'true' : 'false'} aria-label={`Complete: ${plain(task.t)}`}>
+                  <Icon name="circle" class="off" /><Icon name="check-circle-fill" class="on" />
+                </button>
+              ) : (
+                <span class="cb"><Icon name="circle" class="off" /><Icon name="check-circle-fill" class="on" /></span>
+              )}
+              <span class="tx" set:html={task.t} />
+              {task.editing
+                ? task.hint && <span class="hint"><kbd>{task.hint[0]}</kbd>{task.hint[1]}</span>
+                : <span class="del"><Icon name="x-circle-fill" /></span>}
+            </div>
+            {addSub?.after === i && (
+              <div class="addsub" style={`--l:${addSub.level}`}>
+                <Icon name="plus-circle" />Add subtask
+              </div>
+            )}
+          </>
+        ))}
+      </div>
+      {quick !== false && (
+        <div class="quick">
+          <Icon name="plus-circle-fill" />
+          <span class="ph">{quick}</span>
+          {quickHint && <span class="hint"><kbd>⇧⏎</kbd>line</span>}
+        </div>
+      )}
+    </>
+  )}
+</div>

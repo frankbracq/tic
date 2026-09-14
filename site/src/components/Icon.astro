@@ -1,0 +1,16 @@
+---
+// Inline Phosphor icon (via Iconify JSON), rendered at build time — no client JS.
+import { icons } from '@iconify-json/ph';
+import { getIconData, iconToSVG } from '@iconify/utils';
+
+interface Props {
+  name: string;
+  class?: string;
+}
+const { name, class: cls } = Astro.props;
+const data = getIconData(icons, name);
+if (!data) throw new Error(`Unknown Phosphor icon "${name}"`);
+const { attributes, body } = iconToSVG(data, { height: '1em' });
+---
+
+<svg {...attributes} class={cls} fill="currentColor" aria-hidden="true" set:html={body} />

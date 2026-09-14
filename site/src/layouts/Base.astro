@@ -1,0 +1,61 @@
+---
+import { Font } from 'astro:assets';
+import '../styles/global.css';
+import { site } from '../data/site';
+
+interface Props {
+  title?: string;
+  description?: string;
+  noindex?: boolean;
+  jsonLd?: object;
+}
+
+const { title = site.title, description = site.description, noindex = false, jsonLd } = Astro.props;
+// Single-page site: every indexable page's canonical is its own path; previews point at home.
+const canonical = new URL(noindex ? '/' : Astro.url.pathname, Astro.site);
+const ogImage = new URL('/og.png', Astro.site);
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    <meta name="robots" content={noindex ? 'noindex, nofollow' : 'index, follow, max-image-preview:large'} />
+    <meta name="theme-color" content="#e6ecf2" />
+    <meta name="color-scheme" content="light" />
+    <meta name="author" content={site.author.name} />
+    <meta name="application-name" content={site.name} />
+    <meta name="apple-mobile-web-app-title" content={site.name} />
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="sitemap" href="/sitemap-index.xml" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={site.name} />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:alt" content="Tic sticky-note to-do lists floating on a Mac desktop" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImage} />
+    <meta name="twitter:image:alt" content="Tic sticky-note to-do lists floating on a Mac desktop" />
+
+    <Font cssVariable="--font-bricolage" preload />
+    {jsonLd && <script type="application/ld+json" set:html={JSON.stringify(jsonLd).replace(/</g, '\\u003c')} />}
+  </head>
+  <body class="bg-bg font-sans text-fg">
+    <slot />
+  </body>
+</html>

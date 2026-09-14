@@ -1,0 +1,77 @@
+---
+// HTML replica of ListsSearchView: the floating "Search Lists…" palette.
+import Icon from './Icon.astro';
+interface Props {
+  query?: string;
+  class?: string;
+}
+const { query = '', class: cls } = Astro.props;
+
+const lists = [
+  { title: 'Welcome to Tic 👋', fill: '#ffe675' },
+  { title: 'Ship v0.4', fill: '#c2edbd' },
+  { title: 'Groceries', fill: '#b3dbff' },
+  { title: 'This week', fill: '#ffc7d6' },
+  { title: 'Reading list', fill: '#d6c9f7' },
+].filter((list) => list.title.toLowerCase().includes(query.toLowerCase()));
+---
+
+<div class:list={['palette', cls]} role="img" aria-label="Tic’s Search Lists palette, listing recent lists by colour">
+  <div class="search">
+    <Icon name="magnifying-glass" />
+    <span class:list={['field', { empty: !query }]}>{query || 'Search lists…'}</span>
+    <Icon name="x-circle-fill" class="clear" />
+  </div>
+  <div class="divider"></div>
+  <div class="results">
+    <div class="section">{query ? 'Results' : 'Recent Lists'}</div>
+    {lists.map((list, i) => (
+      <div class:list={['row', { sel: i === 0 }]}>
+        <span class="dot" style={`background:${list.fill}`}></span>
+        <span class="name">{list.title}</span>
+        {i === 0 && (
+          <Icon name="trash" class="trash" />
+        )}
+        <span class="kind">List</span>
+      </div>
+    ))}
+  </div>
+  <div class="divider"></div>
+  <div class="foot">
+    <Icon name="list-checks" />
+    <span>Tic Lists</span>
+    <span class="grow"></span>
+    <span>Navigate <kbd>↑↓</kbd></span>
+    <span>Open <kbd>↩</kbd></span>
+  </div>
+</div>
+
+<style>
+  .palette {
+    --ink: rgb(0 0 0 / 0.86); --sec: rgb(0 0 0 / 0.5); --ter: rgb(0 0 0 / 0.3);
+    font-family: var(--sys); font-size: 13px; line-height: 1.3; text-align: left;
+    width: min(100%, 54em); border-radius: 1.1em; overflow: hidden; color: var(--ink);
+    background: rgb(246 246 248 / 0.78);
+    -webkit-backdrop-filter: blur(40px) saturate(1.8); backdrop-filter: blur(40px) saturate(1.8);
+    box-shadow: 0 0 0 0.5px rgb(0 0 0 / 0.16), inset 0 0 0 0.5px rgb(255 255 255 / 0.6), 0 2em 5em rgb(0 0 0 / 0.28);
+  }
+  .search { display: flex; align-items: center; gap: 0.92em; padding: 1.15em 1.38em; }
+  .search :global(svg) { flex: none; width: 1.3em; height: 1.3em; color: var(--sec); }
+  .search :global(.clear) { width: 1.15em; height: 1.15em; color: var(--ter); }
+  .field { flex: 1; font-size: 1.46em; }
+  .field.empty { color: var(--ter); }
+  .divider { height: 1px; background: color-mix(in srgb, var(--ink) 9%, transparent); }
+  .results { padding: 0.46em 0.62em 0.7em; }
+  .section { padding: 0.62em 1.08em 0.2em; font-size: 0.85em; font-weight: 600; color: var(--sec); }
+  .row { display: flex; align-items: center; gap: 0.77em; padding: 0.62em 0.92em; border-radius: 0.62em; }
+  .row.sel { background: rgb(10 132 255 / 0.22); }
+  .dot { flex: none; width: 1.08em; height: 1.08em; border-radius: 50%; box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.15); }
+  .name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row :global(.trash) { width: 0.95em; height: 0.95em; color: var(--sec); }
+  .kind { font-size: 0.85em; color: var(--ter); }
+  .foot { display: flex; align-items: center; gap: 0.77em; padding: 0.7em 1.23em; font-size: 0.85em; color: var(--sec); background: color-mix(in srgb, var(--ink) 4%, transparent); }
+  .foot :global(svg) { width: 1.15em; height: 1.15em; }
+  .grow { flex: 1; }
+  kbd { font: inherit; font-size: 0.9em; padding: 0.1em 0.4em; border-radius: 0.3em; background: color-mix(in srgb, var(--ink) 12%, transparent); }
+  :global(.scene-desk) .palette { font-size: inherit; }
+</style>
