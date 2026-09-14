@@ -342,6 +342,18 @@ final class AppDatabase: Sendable {
         )
     }
 
+    /// Targeted write of just an image's crop, so it can't race a replace or a task text commit.
+    func updateTaskImageCrop(taskId: UUID, crop: CGRect) async throws {
+        try await dbQueue.write { db in
+            try db.execute(
+                sql: "UPDATE taskImage SET cropX = ?, cropY = ?, cropW = ?, cropH = ?, updatedAt = ? WHERE taskId = ?",
+                arguments: [
+                    Double(crop.minX), Double(crop.minY), Double(crop.width), Double(crop.height), Date(), taskId,
+                ]
+            )
+        }
+    }
+
     /// Removes a task's image, keeping the task.
     func deleteTaskImage(taskId: UUID) async throws {
         try await dbQueue.write { db in

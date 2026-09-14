@@ -86,6 +86,29 @@ struct TaskImageTests {
         #expect(averageColor(bottom) == (0, 255))
     }
 
+    @Test("dragging a corner moves only that corner, clamped to the image")
+    func draggingCorner() {
+        let crop = TaskImage.dragging(TaskImage.fullCrop, corner: .topLeading, by: CGSize(width: 0.25, height: 0.5))
+        #expect(crop == CGRect(x: 0.25, y: 0.5, width: 0.75, height: 0.5))   // bottom-trailing stays put
+
+        let outward = TaskImage.dragging(crop, corner: .topLeading, by: CGSize(width: -1, height: -1))
+        #expect(outward == TaskImage.fullCrop)
+    }
+
+    @Test("a corner can't collapse the crop below the minimum side")
+    func draggingMinimumSize() {
+        let crop = TaskImage.dragging(TaskImage.fullCrop, corner: .bottomTrailing, by: CGSize(width: -2, height: -2))
+        #expect(crop == CGRect(x: 0, y: 0, width: TaskImage.minCropSide, height: TaskImage.minCropSide))
+    }
+
+    @Test("sliding keeps the crop's size and keeps it inside the image")
+    func movingCrop() {
+        let crop = CGRect(x: 0.25, y: 0.25, width: 0.5, height: 0.5)
+        #expect(TaskImage.moving(crop, by: CGSize(width: 0.125, height: -0.125))
+            == CGRect(x: 0.375, y: 0.125, width: 0.5, height: 0.5))
+        #expect(TaskImage.moving(crop, by: CGSize(width: 5, height: -5)) == CGRect(x: 0.5, y: 0, width: 0.5, height: 0.5))
+    }
+
     @Test("the preview file is the cropped image as PNG — the stored bytes themselves when uncropped")
     func previewFile() throws {
         let png = encode(makeImage(width: 100, height: 50), as: .png)
@@ -191,13 +214,26 @@ struct TaskImageDatabaseTests {
         #expect(try await firstCrops(db, note.id) == [task.id: TaskImage.fullCrop])
     }
 
-    @Test("a whole-record task text commit leaves the image untouched")
+    @Test("a whole-record task text commit leaves the image and its crop untouched")
     func textCommitKeepsImage() async throws {
-        let (db, _, task, png) = try await makeTaskWithImage()
+        let (db, note, task, png) = try await makeTaskWithImage()
+        let crop = CGRect(x: 0.25, y: 0, width: 0.5, height: 1)
+        try await db.updateTaskImageCrop(taskId: task.id, crop: crop)
         var captioned = task
         captioned.text = "caption"
         try await db.update(captioned)
         #expect(try await db.taskImageData(taskId: task.id) == png)
+        #expect(try await firstCrops(db, note.id) == [task.id: crop])
+    }
+
+    @Test("replacing an image resets its crop")
+    func replaceResetsCrop() async throws {
+        let (db, note, task, _) = try await makeTaskWithImage()
+        try await db.updateTaskImageCrop(taskId: task.id, crop: CGRect(x: 0, y: 0, width: 0.5, height: 0.5))
+        let replacement = encode(makeImage(width: 10, height: 10), as: .png)
+        try await db.setTaskImage(taskId: task.id, data: replacement)
+        #expect(try await db.taskImageData(taskId: task.id) == replacement)
+        #expect(try await firstCrops(db, note.id) == [task.id: TaskImage.fullCrop])
     }
 
     @Test("removing an image keeps its task")
@@ -257,6 +293,17 @@ struct NoteControllerImageTests {
         c.attachImage(encode(makeImage(), as: .png), to: row)
         c.commitText(row, "")
         #expect(c.tasks.contains { $0.id == id })
+    }
+
+    @Test("setCrop changes an image's crop; tasks without an image are ignored")
+    func setCrop() async throws {
+        let c = try await makeController()
+        c.addTask("", imageData: encode(makeImage(), as: .png))
+        c.addTask("plain")
+        let crop = CGRect(x: 0, y: 0, width: 0.5, height: 0.5)
+        c.setCrop(crop, for: c.tasks[0])
+        c.setCrop(crop, for: c.tasks[1])
+        #expect(c.imageCrops == [c.tasks[0].id: crop])
     }
 
     @Test("removing the image of an image-only task removes the task; a captioned task keeps its text")

@@ -11,6 +11,39 @@ import UniformTypeIdentifiers
 /// always what's stored; cropping only ever changes this rect, so it can be reset.
 enum TaskImage {
     static let fullCrop = CGRect(x: 0, y: 0, width: 1, height: 1)
+    /// Smallest crop side, as a fraction of the image, so a handle can't collapse the crop to nothing.
+    static let minCropSide: CGFloat = 0.1
+
+    enum Corner: CaseIterable {
+        case topLeading, topTrailing, bottomLeading, bottomTrailing
+        var isLeading: Bool { self == .topLeading || self == .bottomLeading }
+        var isTop: Bool { self == .topLeading || self == .topTrailing }
+    }
+
+    /// `crop` with `corner` dragged by `delta` (normalised). The opposite corner stays put; the dragged
+    /// one is clamped to the image and kept at least `minCropSide` from the opposite edges.
+    static func dragging(_ crop: CGRect, corner: Corner, by delta: CGSize) -> CGRect {
+        var (minX, minY, maxX, maxY) = (crop.minX, crop.minY, crop.maxX, crop.maxY)
+        if corner.isLeading {
+            minX = min(max(minX + delta.width, 0), maxX - minCropSide)
+        } else {
+            maxX = max(min(maxX + delta.width, 1), minX + minCropSide)
+        }
+        if corner.isTop {
+            minY = min(max(minY + delta.height, 0), maxY - minCropSide)
+        } else {
+            maxY = max(min(maxY + delta.height, 1), minY + minCropSide)
+        }
+        return CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
+    }
+
+    /// `crop` slid by `delta` (normalised) at the same size, kept inside the image.
+    static func moving(_ crop: CGRect, by delta: CGSize) -> CGRect {
+        var moved = crop
+        moved.origin.x = min(max(crop.minX + delta.width, 0), 1 - crop.width)
+        moved.origin.y = min(max(crop.minY + delta.height, 0), 1 - crop.height)
+        return moved
+    }
 
     // ponytail: stored at full size; downscale in normalizedData if big pastes bloat the database.
 

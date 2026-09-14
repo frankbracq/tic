@@ -103,6 +103,14 @@ final class NoteController {
         Task { [db] in try? await db.setTaskImage(taskId: id, data: data) }
     }
 
+    /// Saves a new crop for the task's image. Non-destructive: the original stays stored, so it can be reset.
+    func setCrop(_ crop: CGRect, for task: TaskItem) {
+        let id = task.id
+        guard let current = imageCrops[id], current != crop else { return }
+        imageCrops[id] = crop   // optimistic; the observation confirms
+        Task { [db] in try? await db.updateTaskImageCrop(taskId: id, crop: crop) }
+    }
+
     /// Removes a task's image. An image-only task has nothing left, so the task goes too.
     func removeImage(from task: TaskItem) {
         let id = task.id
