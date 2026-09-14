@@ -306,6 +306,32 @@ struct NoteControllerImageTests {
         #expect(c.imageCrops == [c.tasks[0].id: crop])
     }
 
+    @Test("a staged image waits in the quick-add, then goes into the task Return adds")
+    func stagedImage() async throws {
+        let c = try await makeController()
+        let png = encode(makeImage(), as: .png)
+        c.stageImage(png)
+        #expect(c.tasks.isEmpty)   // nothing is added until Return
+        #expect(c.pendingImage == png)
+        #expect(c.quickAddFocusRequest == 1)
+
+        c.addTaskFromQuickAdd("Caption", level: 0)
+        let task = try #require(c.tasks.first)
+        #expect(task.text == "Caption")
+        #expect(c.imageCrops[task.id] == TaskImage.fullCrop)
+        #expect(c.pendingImage == nil)
+    }
+
+    @Test("a discarded staged image adds nothing")
+    func discardedStagedImage() async throws {
+        let c = try await makeController()
+        c.stageImage(encode(makeImage(), as: .png))
+        c.discardPendingImage()
+        c.addTaskFromQuickAdd("", level: 0)
+        #expect(c.tasks.isEmpty)
+        #expect(c.pendingImage == nil)
+    }
+
     @Test("removing the image of an image-only task removes the task; a captioned task keeps its text")
     func removeImage() async throws {
         let c = try await makeController()

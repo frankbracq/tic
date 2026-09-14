@@ -72,7 +72,7 @@ final class NoteWindowManager: NSObject, NSWindowDelegate {
             }
         }
         panel.onPasteImage = { [weak controller] data in
-            controller?.addTask("", imageData: data)
+            controller?.stageImage(data)
         }
 
         ensureOnScreen(panel)

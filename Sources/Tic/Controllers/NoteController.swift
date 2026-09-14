@@ -95,6 +95,37 @@ final class NoteController {
         Task { [db] in try? await db.insertTask(task, imageData: imageData) }
     }
 
+    // MARK: - Quick-add image
+
+    /// An image pasted into the quick-add, waiting there (with whatever gets typed) until Return adds the
+    /// task. A draft only — never persisted.
+    private(set) var pendingImage: Data?
+    private(set) var pendingThumbnail: CGImage?
+    /// Bumped to ask the quick-add field to take the keyboard (e.g. a paste with nothing focused).
+    private(set) var quickAddFocusRequest = 0
+
+    /// Holds a pasted image in the quick-add, replacing any already waiting, and focuses the field.
+    func stageImage(_ data: Data) {
+        pendingImage = data
+        pendingThumbnail = nil
+        quickAddFocusRequest += 1
+        Task { [weak self] in
+            let thumbnail = await Task.detached { TaskImage.thumbnail(data, maxPixelSize: 256) }.value
+            if self?.pendingImage == data { self?.pendingThumbnail = thumbnail }
+        }
+    }
+
+    func discardPendingImage() {
+        pendingImage = nil
+        pendingThumbnail = nil
+    }
+
+    /// Adds the quick-add draft — `text` plus any waiting image — as a task, and clears the waiting image.
+    func addTaskFromQuickAdd(_ text: String, level: Int) {
+        addTask(text, level: level, imageData: pendingImage)
+        discardPendingImage()
+    }
+
     /// Pastes `data` onto `task` as its image, replacing any it had (a new picture starts uncropped).
     func attachImage(_ data: Data, to task: TaskItem) {
         let id = task.id

@@ -123,8 +123,9 @@ panels**, and a few responsibilities are deliberately split across the AppKit/Sw
   targeted `updateTaskImageCrop`. The controller observes only crops (`observeTaskImageCrops`, never
   `data`) and decodes a downsampled thumbnail off the main actor; rows draw that through
   `CroppedImageCache`, never the full image (a drag re-renders every row each frame). ⌘V routing: a
-  focused `EditorTextView.paste` (row → attach, quick-add → new task with the typed text), otherwise
-  `NotePanel.paste` (new image-only task); `NSPasteboard.pastableImageData` decides image vs text (an
+  focused `EditorTextView.paste` (row → attach; quick-add → `stageImage`), otherwise `NotePanel.paste`
+  (also `stageImage`, which focuses the quick-add via `quickAddFocusRequest`). A staged image waits in
+  the quick-add until **Return** adds it with the typed text; focus loss doesn't submit while one waits; `NSPasteboard.pastableImageData` decides image vs text (an
   image file wins; raw image data only when there's no plain text). An image keeps an empty-text task
   from the blank-task delete. Quick Look uses `NotePanel` as the panel controller over a temp PNG of the
   cropped image.

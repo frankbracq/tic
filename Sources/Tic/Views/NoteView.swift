@@ -350,6 +350,51 @@ struct NoteView: View {
     // MARK: - Quick add
 
     private var quickAdd: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if controller.pendingImage != nil { pendingImageChip }
+            quickAddField
+        }
+        .padding(.leading, 16 + CGFloat(effectiveNewTaskLevel) * NoteLayout.indentStep)
+        .padding(.trailing, 16)
+        .padding(.vertical, 12)
+        .background(theme.accent.opacity(theme.isGlass ? 0.04 : 0.08))
+        .animation(.snappy(duration: 0.15), value: effectiveNewTaskLevel)
+    }
+
+    /// An image pasted into the quick-add, waiting for Return: a small thumbnail, lined up with the text,
+    /// with a ✕ to discard it.
+    private var pendingImageChip: some View {
+        ZStack(alignment: .topTrailing) {
+            Group {
+                if let thumbnail = controller.pendingThumbnail {
+                    Image(decorative: thumbnail, scale: 1)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                } else {
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        .fill(theme.accent.opacity(0.15))
+                        .aspectRatio(1, contentMode: .fit)
+                }
+            }
+            .frame(maxWidth: 160, maxHeight: 44, alignment: .leading)
+            .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+
+            Button { controller.discardPendingImage() } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 14))
+                    .symbolRenderingMode(.palette)
+                    .foregroundStyle(.white, .black.opacity(0.55))
+            }
+            .buttonStyle(.plain)
+            .offset(x: 6, y: -6)
+            .help("Discard image")
+        }
+        .padding(.leading, 24)   // the ⊕ icon + spacing, so the chip sits over the text
+        .transition(.opacity)
+    }
+
+    /// The ⊕ and editor line of the quick-add bar.
+    private var quickAddField: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Image(systemName: "plus.circle.fill")
                 .font(.system(size: 16))
@@ -360,17 +405,17 @@ struct NoteView: View {
             PlainTextEditor(
                 text: $newTaskText,
                 textColor: theme.task,
-                onCommit: { submitNewTask() },
+                focusRequest: controller.quickAddFocusRequest,
+                // Focus loss adds typed text too — but not while an image is waiting: that stays put until
+                // Return (`onSubmit`), so clicking away can never create an image task by accident.
+                onCommit: { if controller.pendingImage == nil { submitNewTask() } },
+                onSubmit: { submitNewTask() },
                 onIndent: { adjustNewTaskLevel(by: 1) },
                 onOutdent: { adjustNewTaskLevel(by: -1) },
                 onFocusChange: { focused in
                     withAnimation(.easeInOut(duration: 0.15)) { quickAddFocused = focused }
                 },
-                onPasteImage: { data in
-                    // An image pasted here becomes a task, captioned with whatever has been typed so far.
-                    controller.addTask(newTaskText, level: effectiveNewTaskLevel, imageData: data)
-                    newTaskText = ""
-                }
+                onPasteImage: { controller.stageImage($0) }
             )
             .overlay(alignment: .topLeading) {
                 if newTaskText.isEmpty {
@@ -389,11 +434,6 @@ struct NoteView: View {
                     .transition(.opacity)
             }
         }
-        .padding(.leading, 16 + CGFloat(effectiveNewTaskLevel) * NoteLayout.indentStep)
-        .padding(.trailing, 16)
-        .padding(.vertical, 12)
-        .background(theme.accent.opacity(theme.isGlass ? 0.04 : 0.08))
-        .animation(.snappy(duration: 0.15), value: effectiveNewTaskLevel)
     }
 
     /// The pending indent clamped to what the current last row allows — i.e. the level a new task
@@ -404,11 +444,13 @@ struct NoteView: View {
         return min(max(newTaskLevel, 0), maxAllowed)
     }
 
-    /// Adds the pending task (if any) at the effective indent level and clears the field. Called on
-    /// Return and on focus loss (the editor keeps focus after Return, so rapid entry still works).
+    /// Adds the pending task (if any) — with any image waiting in the field — at the effective indent
+    /// level and clears the field. Called on Return, and on focus loss while no image is waiting (the
+    /// editor keeps focus after Return, so rapid entry still works).
     private func submitNewTask() {
-        guard !newTaskText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        controller.addTask(newTaskText, level: effectiveNewTaskLevel)
+        let hasText = !newTaskText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        guard hasText || controller.pendingImage != nil else { return }
+        controller.addTaskFromQuickAdd(newTaskText, level: effectiveNewTaskLevel)
         newTaskText = ""
     }
 

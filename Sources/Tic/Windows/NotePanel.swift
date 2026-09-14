@@ -58,8 +58,9 @@ final class NotePanel: NSPanel {
 
     // MARK: - Paste
 
-    /// Adds a pasted image as a new task. Reached when nothing in the note is being edited — a focused
-    /// editor handles ⌘V itself, earlier in the responder chain. Set by `NoteWindowManager`.
+    /// Hands over a pasted image, which waits in the note's quick-add. Reached when nothing in the note
+    /// is being edited — a focused editor handles ⌘V itself, earlier in the responder chain. Set by
+    /// `NoteWindowManager`.
     var onPasteImage: ((Data) -> Void)?
 
     @objc func paste(_ sender: Any?) {

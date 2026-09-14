@@ -23,6 +23,8 @@ struct PlainTextEditor: NSViewRepresentable {
     /// Grab the keyboard as soon as the view appears (true for tap-to-edit rows, false for the
     /// always-present quick-add field, which should only focus on click).
     var autoFocus: Bool = false
+    /// Bump to make the editor take the keyboard on demand (e.g. an image pasted with nothing focused).
+    var focusRequest = 0
     var onCommit: () -> Void = {}
     /// Fired *only* on a plain Return — not on Esc or focus loss (both of which call `onCommit`). Lets
     /// a caller distinguish "the user pressed Return to move on" from "editing ended", e.g. to open
@@ -61,6 +63,11 @@ struct PlainTextEditor: NSViewRepresentable {
     func updateNSView(_ view: EditorTextView, context: Context) {
         if view.string != text { view.string = text }
         configure(view)
+        if focusRequest != context.coordinator.focusRequest {
+            context.coordinator.focusRequest = focusRequest
+            // Deferred: taking first responder mid-update would fire `onFocusChange` during a view update.
+            Task { @MainActor in view.window?.makeFirstResponder(view) }
+        }
     }
 
     func sizeThatFits(_ proposal: ProposedViewSize, nsView: EditorTextView, context: Context) -> CGSize? {
@@ -91,14 +98,20 @@ struct PlainTextEditor: NSViewRepresentable {
         view.textContainer?.lineFragmentPadding = 0
     }
 
-    func makeCoordinator() -> Coordinator { Coordinator(text: $text) }
+    func makeCoordinator() -> Coordinator { Coordinator(text: $text, focusRequest: focusRequest) }
 
     /// Distance from the editor's top to its first text line's baseline, for baseline alignment.
     var firstBaseline: CGFloat { Self.topInset + font.ascender }
 
     final class Coordinator: NSObject, NSTextViewDelegate {
         @Binding var text: String
-        init(text: Binding<String>) { _text = text }
+        /// The last `focusRequest` acted on (starts at the initial value, so creating the view doesn't focus).
+        var focusRequest: Int
+
+        init(text: Binding<String>, focusRequest: Int) {
+            _text = text
+            self.focusRequest = focusRequest
+        }
 
         func textDidChange(_ notification: Notification) {
             guard let view = notification.object as? NSTextView else { return }
