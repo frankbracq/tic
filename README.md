@@ -6,6 +6,8 @@
 [![CI](https://github.com/kasvith/tic/actions/workflows/ci.yml/badge.svg)](https://github.com/kasvith/tic/actions/workflows/ci.yml)
 [![Release](https://github.com/kasvith/tic/actions/workflows/release.yml/badge.svg)](https://github.com/kasvith/tic/releases)
 
+<a href="https://tic.kasvith.me"><img src="site/public/og.png" alt="Tic sticky-note to-do lists floating on a Mac desktop"></a>
+
 </div>
 
 Tic keeps your lists **on the desktop** as floating sticky notes instead of buried behind a menu
