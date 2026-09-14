@@ -365,6 +365,58 @@ struct CropTrackingViewTests {
     }
 }
 
+// MARK: - Image window
+
+@MainActor
+@Suite("Image window")
+struct ImageWindowTests {
+    @Test("the image starts fitted; ⌘= / ⌘- zoom in and out; ⌘0 fits it again")
+    func keyboardZoom() {
+        _ = NSApplication.shared
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 200, height: 100),
+            styleMask: [.titled], backing: .buffered, defer: false
+        )
+        let view = ZoomScrollView()
+        window.contentView = view
+        view.show(makeImage(width: 400, height: 100))
+        let fitted = view.magnification
+        #expect(fitted > 0 && fitted <= 0.5)   // 400pt wide into ≤200pt
+
+        func press(_ key: String) -> Bool {
+            view.performKeyEquivalent(with: NSEvent.keyEvent(
+                with: .keyDown, location: .zero, modifierFlags: .command, timestamp: 0,
+                windowNumber: window.windowNumber, context: nil, characters: key,
+                charactersIgnoringModifiers: key, isARepeat: false, keyCode: 0
+            )!)
+        }
+        #expect(press("="))
+        #expect(abs(view.magnification - fitted * 1.25) < 0.001)
+        #expect(press("-"))
+        #expect(press("-"))
+        #expect(abs(view.magnification - fitted / 1.25) < 0.001)
+        #expect(press("0"))
+        #expect(abs(view.magnification - fitted) < 0.001)
+        #expect(!press("k"))   // other ⌘ shortcuts pass through
+    }
+
+    @Test("Escape and ⌘W close the image window")
+    func closeKeys() {
+        _ = NSApplication.shared
+        for (characters, flags, code) in [("\u{1b}", NSEvent.ModifierFlags(), UInt16(53)), ("w", .command, UInt16(13))] {
+            let window = ImageWindow()
+            window.orderFront(nil)
+            let event = NSEvent.keyEvent(
+                with: .keyDown, location: .zero, modifierFlags: flags, timestamp: 0,
+                windowNumber: window.windowNumber, context: nil, characters: characters,
+                charactersIgnoringModifiers: characters, isARepeat: false, keyCode: code
+            )!
+            #expect(window.performKeyEquivalent(with: event))
+            #expect(!window.isVisible)
+        }
+    }
+}
+
 // MARK: - Controller
 
 @MainActor

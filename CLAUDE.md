@@ -82,7 +82,10 @@ panels**, and a few responsibilities are deliberately split across the AppKit/Sw
   Tab on macOS (see the editing convention below). **`ShortcutHint`** is the small keycap-chip label.
 - **`TaskImage`** (pure CoreGraphics/ImageIO, no AppKit / no DB) + **`TaskImageView`** — pasted images:
   normalise/thumbnail/crop/preview-file helpers and the crop maths (`dragging`, `moving`), and the view
-  that draws a task's image with its hover buttons, context menu, and crop mode.
+  that draws a task's image with its hover buttons, context menu, and crop mode. **`ImageViewer`** is the
+  image window a double-click opens (AppKit `ZoomScrollView` zoom + Open in Preview), dressed like its
+  note (paper/glass background, note-style header, hints) — one reusable `ImageWindow` owned by
+  `NoteWindowManager`; far quicker than launching Preview.
 - **App shell** — `TicApp` (`@main`) provides a `MenuBarExtra`; `AppDelegate`
   (`NSApplicationDelegateAdaptor`) builds the shared `AppDatabase` + `NoteWindowManager` and calls
   `restoreAll()` on launch. The app is a **hybrid**: Dock icon **and** menu bar item.
@@ -127,8 +130,8 @@ panels**, and a few responsibilities are deliberately split across the AppKit/Sw
   (also `stageImage`, which focuses the quick-add via `quickAddFocusRequest`). A staged image waits in
   the quick-add until **Return** adds it with the typed text; focus loss doesn't submit while one waits; `NSPasteboard.pastableImageData` decides image vs text (an
   image file wins; raw image data only when there's no plain text). An image keeps an empty-text task
-  from the blank-task delete. Quick Look uses `NotePanel` as the panel controller over a temp PNG of the
-  cropped image. Crop mode's mouse and keys are AppKit (`CropTrackingView`), SwiftUI only draws it: a
+  from the blank-task delete. Open in Preview renders a temp PNG of the cropped image
+  (`TaskImage.writePreviewFile`). Crop mode's mouse and keys are AppKit (`CropTrackingView`), SwiftUI only draws it: a
   SwiftUI `DragGesture` there kept following the pointer after mouse-up, and SwiftUI focus never
   arrived, so ⏎ / ⎋ / click-away did nothing. Images size through the `AspectFit` layout:
   `.aspectRatio(.fit)` + `.frame(maxHeight:)` laid out row-wide, dragging the hover chrome to the note's edge.

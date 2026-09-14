@@ -2,8 +2,8 @@ import AppKit
 import SwiftUI
 
 /// A task's pasted image, drawn under its text: the cropped thumbnail, fit to the text column and
-/// capped in height so a tall screenshot can't swallow the note. Hover reveals crop / Quick Look
-/// buttons; double-click opens Quick Look; right-click has the rest.
+/// capped in height so a tall screenshot can't swallow the note. Hover reveals crop / open buttons;
+/// double-click opens the image window (zoom, Open in Preview); right-click has the rest.
 ///
 /// **Crop mode** shows the whole image with the discarded area dimmed and a bracket on each corner of
 /// the kept area: drag a bracket to resize, drag anywhere else to slide the crop. ⏎ (or click-away)
@@ -17,8 +17,8 @@ struct TaskImageView: View {
     let crop: CGRect
     let theme: NoteTheme
     var onCrop: (CGRect) -> Void = { _ in }
-    /// Show the image full size: Quick Look (`false`) or the Preview app (`true`).
-    var onOpen: (_ inPreviewApp: Bool) -> Void = { _ in }
+    /// Opens the image in the image window.
+    var onOpen: () -> Void = {}
     var onRemove: () -> Void = {}
     /// Reports when the image starts / stops being pointed at or cropped, so the row can pause its reorder
     /// drag — otherwise dragging a crop handle or pressing a hover button also drags the whole task.
@@ -55,17 +55,16 @@ struct TaskImageView: View {
                 if hovering {
                     HStack(spacing: 4) {
                         glyphButton("crop", help: "Crop") { beginCrop() }
-                        glyphButton("arrow.up.left.and.arrow.down.right", help: "Quick Look") { onOpen(false) }
+                        glyphButton("arrow.up.left.and.arrow.down.right", help: "Open image") { onOpen() }
                     }
                     .padding(6)
                     .transition(.opacity)
                 }
             }
             .onHover { inside in withAnimation(.easeInOut(duration: 0.12)) { hovering = inside } }
-            .onTapGesture(count: 2) { onOpen(false) }
+            .onTapGesture(count: 2) { onOpen() }
             .contextMenu {
-                Button("Quick Look") { onOpen(false) }
-                Button("Open in Preview") { onOpen(true) }
+                Button("Open Image") { onOpen() }
                 Divider()
                 Button("Crop") { beginCrop() }
                 Button("Reset Crop") { onCrop(TaskImage.fullCrop) }

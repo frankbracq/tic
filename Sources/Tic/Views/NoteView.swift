@@ -261,7 +261,7 @@ struct NoteView: View {
                 TaskImageView(
                     image: controller.thumbnails[task.id], crop: crop, theme: theme,
                     onCrop: { controller.setCrop($0, for: task) },
-                    onOpen: { controller.openImage(task, inPreviewApp: $0) },
+                    onOpen: { controller.openImage(task) },
                     onRemove: { controller.removeImage(from: task) },
                     onInteractionChange: { active in setImageInteraction(task.id, active) }
                 )

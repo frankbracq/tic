@@ -70,6 +70,11 @@ enum TaskImage {
             : CGSize(width: aspect * maxHeight, height: maxHeight)
     }
 
+    /// The whole image at full resolution with its orientation applied — for the image window.
+    static func fullImage(_ data: Data) -> CGImage? {
+        CGImageSourceCreateWithData(data as CFData, nil).flatMap { decode($0, maxPixelSize: nil) }
+    }
+
     /// `image` cropped to the normalised `crop`.
     static func cropped(_ image: CGImage, to crop: CGRect) -> CGImage? {
         let width = CGFloat(image.width), height = CGFloat(image.height)
@@ -80,7 +85,7 @@ enum TaskImage {
         return image.cropping(to: pixels.integral)
     }
 
-    /// Writes the cropped image to a temp PNG for Quick Look / Preview and returns its URL. Each call
+    /// Writes the cropped image to a temp PNG for the Preview app and returns its URL. Each call
     /// clears earlier previews and uses a fresh folder, so a re-crop can never show a stale cached file.
     static func writePreviewFile(_ data: Data, crop: CGRect) -> URL? {
         let fileManager = FileManager.default
