@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 import Observation
 
@@ -10,9 +11,15 @@ final class NoteController {
     let noteID: UUID
     private(set) var note: Note
     private(set) var tasks: [TaskItem] = []
+    /// The crop of each task's image, keyed by task id — a key's presence means the task has an image.
+    private(set) var imageCrops: [UUID: CGRect] = [:]
+    /// Downsampled, uncropped bitmaps for drawing images on the note, loaded lazily per task.
+    private(set) var thumbnails: [UUID: CGImage] = [:]
 
     @ObservationIgnored private let db: AppDatabase
     @ObservationIgnored private var observation: Task<Void, Never>?
+    @ObservationIgnored private var imageObservation: Task<Void, Never>?
+    @ObservationIgnored private var loadingThumbnails: Set<UUID> = []
 
     /// Re-applies window behaviour (floatOnTop, showOnAllSpaces) to the live panel. Set by
     /// `NoteWindowManager` so the controller stays AppKit-free.
@@ -26,6 +33,9 @@ final class NoteController {
 
     /// Asks the manager to create a brand-new note (the in-note "+" button).
     @ObservationIgnored var onNewNote: (() -> Void)?
+
+    /// Asks the manager to show a task's image (by task id) in the image window.
+    @ObservationIgnored var onOpenImage: ((UUID) -> Void)?
 
     init(note: Note, database: AppDatabase) {
         self.noteID = note.id
@@ -45,25 +55,123 @@ final class NoteController {
                 NSLog("[Tic] task observation ended for \(noteID): \(error)")
             }
         }
+        imageObservation?.cancel()
+        imageObservation = Task { [weak self, db, noteID] in
+            do {
+                for try await crops in db.observeTaskImageCrops(noteId: noteID) {
+                    self?.imageCrops = crops
+                    self?.syncThumbnails()
+                }
+            } catch {
+                NSLog("[Tic] image observation ended for \(noteID): \(error)")
+            }
+        }
     }
 
     func stop() {
         observation?.cancel()
         observation = nil
+        imageObservation?.cancel()
+        imageObservation = nil
     }
 
     // MARK: - Task actions
 
     /// Adds a task at the end. `level` is the requested nesting depth (from the quick-add field's
     /// pending indent); it's clamped to what the previous row allows so the outline stays valid.
-    func addTask(_ rawText: String, level: Int = 0) {
+    /// With `imageData` (a paste) the task carries that image, and its text may be empty.
+    func addTask(_ rawText: String, level: Int = 0, imageData: Data? = nil) {
         let text = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return }
+        guard !text.isEmpty || imageData != nil else { return }
         let maxLevel = tasks.last.map { min(TaskItem.maxIndentLevel, $0.indentLevel + 1) } ?? 0
         let clamped = min(max(level, 0), maxLevel)
         let task = TaskItem(noteId: noteID, text: text, sortIndex: tasks.count, indentLevel: clamped)
         tasks += [task]   // optimistic so the row appears instantly
-        Task { [db] in try? await db.insertTask(task) }   // insertTask assigns the real sortIndex (MAX+1)
+        if let imageData {
+            imageCrops[task.id] = TaskImage.fullCrop
+            loadThumbnail(task.id, data: imageData)
+        }
+        // insertTask assigns the real sortIndex (MAX+1)
+        Task { [db] in try? await db.insertTask(task, imageData: imageData) }
+    }
+
+    // MARK: - Quick-add image
+
+    /// An image pasted into the quick-add, waiting there (with whatever gets typed) until Return adds the
+    /// task. A draft only — never persisted.
+    private(set) var pendingImage: Data?
+    private(set) var pendingThumbnail: CGImage?
+    /// Bumped to ask the quick-add field to take the keyboard (e.g. a paste with nothing focused).
+    private(set) var quickAddFocusRequest = 0
+
+    /// Holds a pasted image in the quick-add, replacing any already waiting, and focuses the field.
+    func stageImage(_ data: Data) {
+        pendingImage = data
+        pendingThumbnail = nil
+        quickAddFocusRequest += 1
+        Task { [weak self] in
+            let thumbnail = await Task.detached { TaskImage.thumbnail(data, maxPixelSize: 256) }.value
+            if self?.pendingImage == data { self?.pendingThumbnail = thumbnail }
+        }
+    }
+
+    func discardPendingImage() {
+        pendingImage = nil
+        pendingThumbnail = nil
+    }
+
+    /// Adds the quick-add draft — `text` plus any waiting image — as a task, and clears the waiting image.
+    func addTaskFromQuickAdd(_ text: String, level: Int) {
+        addTask(text, level: level, imageData: pendingImage)
+        discardPendingImage()
+    }
+
+    /// Pastes `data` onto `task` as its image, replacing any it had (a new picture starts uncropped).
+    func attachImage(_ data: Data, to task: TaskItem) {
+        let id = task.id
+        imageCrops[id] = TaskImage.fullCrop   // optimistic; the observation confirms
+        loadThumbnail(id, data: data)
+        Task { [db] in try? await db.setTaskImage(taskId: id, data: data) }
+    }
+
+    /// Saves a new crop for the task's image. Non-destructive: the original stays stored, so it can be reset.
+    func setCrop(_ crop: CGRect, for task: TaskItem) {
+        let id = task.id
+        guard let current = imageCrops[id], current != crop else { return }
+        imageCrops[id] = crop   // optimistic; the observation confirms
+        Task { [db] in try? await db.updateTaskImageCrop(taskId: id, crop: crop) }
+    }
+
+    /// Removes a task's image. An image-only task has nothing left, so the task goes too.
+    func removeImage(from task: TaskItem) {
+        let id = task.id
+        guard imageCrops[id] != nil else { return }
+        imageCrops[id] = nil
+        thumbnails[id] = nil
+        if (tasks.first(where: { $0.id == id })?.text ?? "").isEmpty {
+            delete(task)   // the image cascades with it
+        } else {
+            Task { [db] in try? await db.deleteTaskImage(taskId: id) }
+        }
+    }
+
+    /// Opens the task's image in the image window.
+    func openImage(_ task: TaskItem) {
+        onOpenImage?(task.id)
+    }
+
+    /// The task's stored image at full resolution, uncropped — decoded off the main actor.
+    func fullImage(taskId id: UUID) async -> CGImage? {
+        guard let data = try? await db.taskImageData(taskId: id) else { return nil }
+        return await Task.detached { TaskImage.fullImage(data) }.value
+    }
+
+    /// A temp PNG of the task's image as currently cropped, for handing to the Preview app — rendered off
+    /// the main actor.
+    func previewFile(taskId id: UUID) async -> URL? {
+        let crop = imageCrops[id] ?? TaskImage.fullCrop
+        guard let data = try? await db.taskImageData(taskId: id) else { return nil }
+        return await Task.detached { TaskImage.writePreviewFile(data, crop: crop) }.value
     }
 
     /// Inserts an empty subtask one level under `parent`, positioned right after `parent`'s existing
@@ -128,10 +236,10 @@ final class NoteController {
     func commitText(_ task: TaskItem, _ rawText: String) {
         // Trim only the outer whitespace/newlines; interior newlines are kept (multiline tasks).
         let text = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
-        // A blank (or whitespace-only) task is never kept — an abandoned new row just disappears.
-        // Checked before the "unchanged" guard so a freshly-added empty row (whose stored text is
-        // also empty) still gets removed on blur instead of lingering.
-        if text.isEmpty {
+        // A blank (or whitespace-only) task is never kept — an abandoned new row just disappears —
+        // unless it holds an image. Checked before the "unchanged" guard so a freshly-added empty row
+        // (whose stored text is also empty) still gets removed on blur instead of lingering.
+        if text.isEmpty, imageCrops[task.id] == nil {
             delete(task)
             return
         }
@@ -198,6 +306,34 @@ final class NoteController {
         let ordered = reorder ? updated : nil
         Task { [db] in
             try? await db.applyStructuralUpdate(deleteIds: deleteIds, reorder: ordered, levels: levels)
+        }
+    }
+
+    // MARK: - Image helpers
+
+    /// Keeps `thumbnails` in step with `imageCrops`: drops bitmaps for images that are gone and loads
+    /// any that are missing.
+    private func syncThumbnails() {
+        if thumbnails.keys.contains(where: { imageCrops[$0] == nil }) {
+            thumbnails = thumbnails.filter { imageCrops[$0.key] != nil }
+        }
+        for id in imageCrops.keys where thumbnails[id] == nil && !loadingThumbnails.contains(id) {
+            loadThumbnail(id)
+        }
+    }
+
+    /// Decodes `id`'s thumbnail off the main actor — from `data` when we already hold it (a paste),
+    /// otherwise read from the database — and publishes it unless the image was removed meanwhile.
+    /// Until it lands, a replaced image keeps showing its previous thumbnail rather than flashing empty.
+    private func loadThumbnail(_ id: UUID, data knownData: Data? = nil) {
+        loadingThumbnails.insert(id)
+        Task { [weak self, db] in
+            let data: Data?
+            if let knownData { data = knownData } else { data = try? await db.taskImageData(taskId: id) }
+            let thumbnail = await Task.detached { data.flatMap { TaskImage.thumbnail($0) } }.value
+            guard let self else { return }
+            loadingThumbnails.remove(id)
+            if imageCrops[id] != nil { thumbnails[id] = thumbnail }
         }
     }
 

@@ -21,7 +21,7 @@ open Package.swift          # opens the package in Xcode for GUI editing / previ
 - **Landing page** (tic.kasvith.me) is a self-contained Astro + pnpm project in `site/` — all Node
   tooling stays there (see `site/README.md`); never add JS files to the repo root.
 - **Verification** is a clean `swift build`, `swift test` (Swift Testing — `AppDatabaseTests`,
-  `TaskOutlineTests`, `NoteColorTests`), plus running the app. The outline logic lives in pure,
+  `TaskOutlineTests`, `NoteColorTests`, `TaskImageTests`, …), plus running the app. The outline logic lives in pure,
   testable functions (`TaskOutline`) precisely so it can be covered without a DB or the main actor.
 - `swift run` produces a bare executable (no bundle): fine for dev, but it has no Dock identity
   and **can't register as a login item** (SMAppService needs a real bundle).
@@ -80,6 +80,12 @@ panels**, and a few responsibilities are deliberately split across the AppKit/Sw
 - **`PlainTextEditor`** (`NSViewRepresentable` over `NSTextView`) — the task / quick-add editor.
   AppKit, not SwiftUI `TextField`, because that control can't reliably insert newlines or intercept
   Tab on macOS (see the editing convention below). **`ShortcutHint`** is the small keycap-chip label.
+- **`TaskImage`** (pure CoreGraphics/ImageIO, no AppKit / no DB) + **`TaskImageView`** — pasted images:
+  normalise/thumbnail/crop/preview-file helpers and the crop maths (`dragging`, `moving`), and the view
+  that draws a task's image with its hover buttons, context menu, and crop mode. **`ImageViewer`** is the
+  image window a double-click opens (AppKit `ZoomScrollView` zoom + Open in Preview), dressed like its
+  note (paper/glass background, note-style header, hints) — one reusable `ImageWindow` owned by
+  `NoteWindowManager`; far quicker than launching Preview.
 - **App shell** — `TicApp` (`@main`) provides a `MenuBarExtra`; `AppDelegate`
   (`NSApplicationDelegateAdaptor`) builds the shared `AppDatabase` + `NoteWindowManager` and calls
   `restoreAll()` on launch. The app is a **hybrid**: Dock icon **and** menu bar item.
@@ -114,6 +120,23 @@ panels**, and a few responsibilities are deliberately split across the AppKit/Sw
   multiline would clip), reports height via `sizeThatFits`, and an `editorFirstBaseline()` guide
   aligns the adjacent checkbox to the editor's first line (an NSView has no SwiftUI text baseline).
   A blank/whitespace-only task is deleted on commit, so an abandoned new row just disappears.
+- **Images: one per task, own table, crop is just a rect.** `taskImage` (PK `taskId`, cascades with the
+  task) holds the original PNG plus a crop normalised 0…1 with a **top-left** origin (CGImage pixel
+  space — no flip). It's a separate table so `observeTasks` never loads blobs, and the crop has its own
+  targeted `updateTaskImageCrop`. The controller observes only crops (`observeTaskImageCrops`, never
+  `data`) and decodes a downsampled thumbnail off the main actor; rows draw that through
+  `CroppedImageCache`, never the full image (a drag re-renders every row each frame). ⌘V routing: a
+  focused `EditorTextView.paste` (row → attach; quick-add → `stageImage`), otherwise `NotePanel.paste`
+  (also `stageImage`, which focuses the quick-add via `quickAddFocusRequest`). A staged image waits in
+  the quick-add until **Return** adds it with the typed text; focus loss doesn't submit while one waits; `NSPasteboard.pastableImageData` decides image vs text (an
+  image file wins; raw image data only when there's no plain text). An image keeps an empty-text task
+  from the blank-task delete. Open in Preview renders a temp PNG of the cropped image
+  (`TaskImage.writePreviewFile`). Crop mode's mouse and keys are AppKit (`CropTrackingView`), SwiftUI only draws it: a
+  SwiftUI `DragGesture` there kept following the pointer after mouse-up, and SwiftUI focus never
+  arrived, so ⏎ / ⎋ / click-away did nothing. Images size through the `AspectFit` layout:
+  `.aspectRatio(.fit)` + `.frame(maxHeight:)` laid out row-wide, dragging the hover chrome to the note's edge.
+  Pointing at or cropping an image pauses its row's reorder drag (`GestureMask.subviews`) — SwiftUI's row
+  `DragGesture` otherwise also fires over the image's buttons and even the AppKit crop view.
 - **Rendered Markdown is memoised (`MarkdownRenderCache`).** Parsing inline Markdown per line on
   every body re-eval made dragging janky (the whole list re-renders each frame); the cache re-parses
   only when a task's text/colour actually changes.

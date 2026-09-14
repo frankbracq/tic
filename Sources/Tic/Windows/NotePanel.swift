@@ -54,4 +54,20 @@ final class NotePanel: NSPanel {
 
     /// Borderless/utility panels don't become key by default; we need it for text editing.
     override var canBecomeKey: Bool { true }
+
+    // MARK: - Paste
+
+    /// Hands over a pasted image, which waits in the note's quick-add. Reached when nothing in the note
+    /// is being edited — a focused editor handles ⌘V itself, earlier in the responder chain. Set by
+    /// `NoteWindowManager`.
+    var onPasteImage: ((Data) -> Void)?
+
+    @objc func paste(_ sender: Any?) {
+        if let data = NSPasteboard.general.pastableImageData() { onPasteImage?(data) }
+    }
+
+    override func validateUserInterfaceItem(_ item: any NSValidatedUserInterfaceItem) -> Bool {
+        if item.action == #selector(paste(_:)) { return NSPasteboard.general.hasPastableImage }
+        return super.validateUserInterfaceItem(item)
+    }
 }

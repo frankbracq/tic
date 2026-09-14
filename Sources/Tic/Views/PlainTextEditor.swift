@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// A borderless, transparent, auto-growing multiline text editor backed by `NSTextView`.
 ///
@@ -22,6 +23,8 @@ struct PlainTextEditor: NSViewRepresentable {
     /// Grab the keyboard as soon as the view appears (true for tap-to-edit rows, false for the
     /// always-present quick-add field, which should only focus on click).
     var autoFocus: Bool = false
+    /// Bump to make the editor take the keyboard on demand (e.g. an image pasted with nothing focused).
+    var focusRequest = 0
     var onCommit: () -> Void = {}
     /// Fired *only* on a plain Return — not on Esc or focus loss (both of which call `onCommit`). Lets
     /// a caller distinguish "the user pressed Return to move on" from "editing ended", e.g. to open
@@ -32,6 +35,8 @@ struct PlainTextEditor: NSViewRepresentable {
     /// Fired when the editor gains (`true`) / loses (`false`) first-responder, so the note can show
     /// its contextual shortcut hints only while a field is actually being edited.
     var onFocusChange: (Bool) -> Void = { _ in }
+    /// When set, ⌘V with an image on the clipboard hands the image here instead of pasting text.
+    var onPasteImage: ((Data) -> Void)?
 
     func makeNSView(context: Context) -> EditorTextView {
         let view = EditorTextView()
@@ -58,6 +63,11 @@ struct PlainTextEditor: NSViewRepresentable {
     func updateNSView(_ view: EditorTextView, context: Context) {
         if view.string != text { view.string = text }
         configure(view)
+        if focusRequest != context.coordinator.focusRequest {
+            context.coordinator.focusRequest = focusRequest
+            // Deferred: taking first responder mid-update would fire `onFocusChange` during a view update.
+            Task { @MainActor in view.window?.makeFirstResponder(view) }
+        }
     }
 
     func sizeThatFits(_ proposal: ProposedViewSize, nsView: EditorTextView, context: Context) -> CGSize? {
@@ -71,6 +81,7 @@ struct PlainTextEditor: NSViewRepresentable {
         view.onIndent = onIndent
         view.onOutdent = onOutdent
         view.onFocusChange = onFocusChange
+        view.onPasteImage = onPasteImage
         view.font = font
         view.textColor = NSColor(textColor)
         view.drawsBackground = false
@@ -87,14 +98,20 @@ struct PlainTextEditor: NSViewRepresentable {
         view.textContainer?.lineFragmentPadding = 0
     }
 
-    func makeCoordinator() -> Coordinator { Coordinator(text: $text) }
+    func makeCoordinator() -> Coordinator { Coordinator(text: $text, focusRequest: focusRequest) }
 
     /// Distance from the editor's top to its first text line's baseline, for baseline alignment.
     var firstBaseline: CGFloat { Self.topInset + font.ascender }
 
     final class Coordinator: NSObject, NSTextViewDelegate {
         @Binding var text: String
-        init(text: Binding<String>) { _text = text }
+        /// The last `focusRequest` acted on (starts at the initial value, so creating the view doesn't focus).
+        var focusRequest: Int
+
+        init(text: Binding<String>, focusRequest: Int) {
+            _text = text
+            self.focusRequest = focusRequest
+        }
 
         func textDidChange(_ notification: Notification) {
             guard let view = notification.object as? NSTextView else { return }
@@ -115,6 +132,7 @@ final class EditorTextView: NSTextView {
     var onIndent: () -> Void = {}
     var onOutdent: () -> Void = {}
     var onFocusChange: (Bool) -> Void = { _ in }
+    var onPasteImage: ((Data) -> Void)?
 
     /// When true, the view makes itself first responder the first time it lands in a window.
     var autoFocusesOnAppear = false
@@ -174,6 +192,22 @@ final class EditorTextView: NSTextView {
         }
     }
 
+    override func paste(_ sender: Any?) {
+        if let onPasteImage, let data = NSPasteboard.general.pastableImageData() {
+            onPasteImage(data)
+        } else {
+            super.paste(sender)
+        }
+    }
+
+    /// A plain-text view disables Paste when the clipboard holds only an image; re-enable it for one.
+    override func validateUserInterfaceItem(_ item: any NSValidatedUserInterfaceItem) -> Bool {
+        if item.action == #selector(paste(_:)), onPasteImage != nil, NSPasteboard.general.hasPastableImage {
+            return true
+        }
+        return super.validateUserInterfaceItem(item)
+    }
+
     override func didChangeText() {
         super.didChangeText()
         invalidateIntrinsicContentSize()
@@ -206,6 +240,33 @@ final class EditorTextView: NSTextView {
     private var lineHeight: CGFloat {
         guard let font else { return 16 }
         return layoutManager?.defaultLineHeight(for: font) ?? ceil(font.ascender - font.descender + font.leading)
+    }
+}
+
+extension NSPasteboard {
+    /// Matches only image *files* (e.g. a Finder copy).
+    private var imageFileOptions: [ReadingOptionKey: Any] {
+        [.urlReadingFileURLsOnly: true, .urlReadingContentsConformToTypes: [UTType.image.identifier]]
+    }
+
+    /// Cheap check (no decoding) for whether ⌘V should paste an image rather than text. An image file
+    /// wins even though Finder also puts its filename on the clipboard as text; raw image data counts
+    /// only when there's no plain text alongside it, so copying text that carries a picture pastes text.
+    var hasPastableImage: Bool {
+        canReadObject(forClasses: [NSURL.self], options: imageFileOptions)
+            || (string(forType: .string) == nil && availableType(from: [.png, .tiff]) != nil)
+    }
+
+    /// The image ⌘V should paste, normalised for storage (`TaskImage.normalizedData`), or nil for a
+    /// text paste. Takes the first image when several files are copied.
+    func pastableImageData() -> Data? {
+        if let url = (readObjects(forClasses: [NSURL.self], options: imageFileOptions) as? [URL])?.first {
+            return (try? Data(contentsOf: url)).flatMap(TaskImage.normalizedData)
+        }
+        guard string(forType: .string) == nil,
+              let type = availableType(from: [.png, .tiff]),
+              let data = data(forType: type) else { return nil }
+        return TaskImage.normalizedData(data)
     }
 }
 

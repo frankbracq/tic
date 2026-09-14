@@ -25,6 +25,10 @@ struct TaskRowView: View {
     /// Reports hover enter/leave up to the list, which uses it to reveal the "Add subtask" affordance
     /// at the bottom of the hovered heading's group.
     let onHoverChanged: (Bool) -> Void
+    /// The task's pasted image (built by `NoteView`), shown under the text; nil when it has none.
+    let image: TaskImageView?
+    /// ⌘V of an image while this row is being edited attaches it to the task.
+    let onPasteImage: (Data) -> Void
 
     @State private var draft: String
     @State private var editing = false
@@ -32,6 +36,9 @@ struct TaskRowView: View {
     // Memoises the parsed Markdown so it isn't re-parsed on every re-render (e.g. each frame of a
     // drag), which otherwise makes reordering feel laggy.
     @State private var renderCache = MarkdownRenderCache()
+
+    /// Where the text column starts — the 16pt checkbox glyph plus the row's spacing — so the image lines up.
+    private static let textInset: CGFloat = 24
 
     init(
         task: TaskItem,
@@ -43,7 +50,9 @@ struct TaskRowView: View {
         onIndent: @escaping () -> Void,
         onOutdent: @escaping () -> Void,
         onSubmit: @escaping () -> Void = {},
-        onHoverChanged: @escaping (Bool) -> Void = { _ in }
+        onHoverChanged: @escaping (Bool) -> Void = { _ in },
+        image: TaskImageView? = nil,
+        onPasteImage: @escaping (Data) -> Void = { _ in }
     ) {
         self.task = task
         self.theme = theme
@@ -55,6 +64,8 @@ struct TaskRowView: View {
         self.onOutdent = onOutdent
         self.onSubmit = onSubmit
         self.onHoverChanged = onHoverChanged
+        self.image = image
+        self.onPasteImage = onPasteImage
         _draft = State(initialValue: task.text)
     }
 
@@ -62,11 +73,23 @@ struct TaskRowView: View {
     private var canNestDeeper: Bool { task.indentLevel < TaskItem.maxIndentLevel }
 
     var body: some View {
-        taskRow
-            .onHover { isHovering in
-                withAnimation(.easeInOut(duration: 0.12)) { hovering = isHovering }
-                onHoverChanged(isHovering)
-            }
+        VStack(alignment: .leading, spacing: 6) {
+            // Hover is tracked on the text line only. Over an image it would reveal the ✕ and the section's
+            // "Add subtask" row, and either shifts the layout under a pointer resting on a tall picture.
+            taskRow
+                .onHover { isHovering in
+                    withAnimation(.easeInOut(duration: 0.12)) { hovering = isHovering }
+                    onHoverChanged(isHovering)
+                }
+            // Below the text line's HStack, so the ✕ / nest hint appearing can't narrow a fill-width image —
+            // which would shorten the row under the pointer and make the hover flicker on and off.
+            image
+                .opacity(task.isDone ? 0.6 : 1)
+                .padding(.leading, Self.textInset)
+        }
+        .padding(.vertical, 2)
+        .padding(.leading, CGFloat(task.indentLevel) * NoteLayout.indentStep)
+        .contentShape(Rectangle())
             // Begin editing whenever this becomes (or re-becomes, after a scroll recreates the row)
             // the active add target. `beginEditing` is a no-op once already editing, so a plain
             // re-render won't disturb an in-progress edit — only a fresh appearance re-triggers it.
@@ -104,8 +127,6 @@ struct TaskRowView: View {
                 .help("Delete task")
             }
         }
-        .padding(.vertical, 2)
-        .padding(.leading, CGFloat(task.indentLevel) * NoteLayout.indentStep)
         .contentShape(Rectangle())
     }
 
@@ -121,9 +142,19 @@ struct TaskRowView: View {
                 onCommit: { commit() },
                 onSubmit: onSubmit,
                 onIndent: onIndent,
-                onOutdent: onOutdent
+                onOutdent: onOutdent,
+                onPasteImage: onPasteImage
             )
             .editorFirstBaseline()
+        } else if task.text.isEmpty {
+            // An image-only task: an empty line (a hint on hover) keeps the row's height steady and is
+            // where you click to add text.
+            Text("Add text…")
+                .foregroundStyle(theme.secondary)
+                .opacity(hovering ? 1 : 0)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+                .onTapGesture { beginEditing() }
         } else {
             Text(renderCache.rendered(text: task.text, color: baseColor))
                 .strikethrough(task.isDone, color: theme.completed.opacity(0.7))

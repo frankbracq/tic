@@ -52,6 +52,8 @@ struct NoteView: View {
     // pointer moves across the heading, its children, and the affordance itself — it never darts away.
     @State private var activeSectionID: TaskItem.ID?
     @State private var quickAddFocused = false   // show the quick-add's newline hint only while typing
+    // The task whose image is under the pointer or being cropped; its row's reorder drag is paused.
+    @State private var imageInteractionTaskID: TaskItem.ID?
     @FocusState private var titleFocused: Bool
 
     private static let listSpace = "tic.tasklist"
@@ -254,7 +256,17 @@ struct NoteView: View {
             onSubmit: { continueAdding(after: task) },
             onHoverChanged: { hovering in
                 if hovering { withAnimation(.easeInOut(duration: 0.12)) { activeSectionID = sectionRootID(of: task) } }
-            }
+            },
+            image: controller.imageCrops[task.id].map { crop in
+                TaskImageView(
+                    image: controller.thumbnails[task.id], crop: crop, theme: theme,
+                    onCrop: { controller.setCrop($0, for: task) },
+                    onOpen: { controller.openImage(task) },
+                    onRemove: { controller.removeImage(from: task) },
+                    onInteractionChange: { active in setImageInteraction(task.id, active) }
+                )
+            },
+            onPasteImage: { controller.attachImage($0, to: task) }
         )
         .padding(.horizontal, 12)
         .padding(.vertical, 1)
@@ -275,9 +287,22 @@ struct NoteView: View {
         .opacity(dragging ? 0.95 : 1)
         .shadow(color: .black.opacity(dragging ? 0.18 : 0), radius: dragging ? 5 : 0, y: 2)
         .zIndex(dragging ? 1 : 0)
-        // Reorder is paused while completed are auto-sorted to the bottom (it would fight the sort);
-        // `.subviews` disables only this drag gesture, leaving the checkbox / inline editor clickable.
-        .gesture(reorderGesture(for: task), including: controller.isReorderable ? .all : .subviews)
+        // Reorder is paused while completed are auto-sorted to the bottom (it would fight the sort), and on a
+        // row whose image is being pointed at or cropped (so its buttons / crop handles never drag the task).
+        // `.subviews` disables only this drag gesture, leaving the checkbox / editor / image usable.
+        .gesture(
+            reorderGesture(for: task),
+            including: controller.isReorderable && imageInteractionTaskID != task.id ? .all : .subviews
+        )
+    }
+
+    /// Records whether `id`'s image is being pointed at or cropped; that row's reorder drag pauses meanwhile.
+    private func setImageInteraction(_ id: TaskItem.ID, _ active: Bool) {
+        if active {
+            imageInteractionTaskID = id
+        } else if imageInteractionTaskID == id {
+            imageInteractionTaskID = nil
+        }
     }
 
     private func reorderGesture(for task: TaskItem) -> some Gesture {
@@ -341,6 +366,51 @@ struct NoteView: View {
     // MARK: - Quick add
 
     private var quickAdd: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if controller.pendingImage != nil { pendingImageChip }
+            quickAddField
+        }
+        .padding(.leading, 16 + CGFloat(effectiveNewTaskLevel) * NoteLayout.indentStep)
+        .padding(.trailing, 16)
+        .padding(.vertical, 12)
+        .background(theme.accent.opacity(theme.isGlass ? 0.04 : 0.08))
+        .animation(.snappy(duration: 0.15), value: effectiveNewTaskLevel)
+    }
+
+    /// An image pasted into the quick-add, waiting for Return: a small thumbnail, lined up with the text,
+    /// with a ✕ to discard it.
+    private var pendingImageChip: some View {
+        ZStack(alignment: .topTrailing) {
+            Group {
+                if let thumbnail = controller.pendingThumbnail {
+                    Image(decorative: thumbnail, scale: 1)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                } else {
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        .fill(theme.accent.opacity(0.15))
+                        .aspectRatio(1, contentMode: .fit)
+                }
+            }
+            .frame(maxWidth: 160, maxHeight: 44, alignment: .leading)
+            .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+
+            Button { controller.discardPendingImage() } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 14))
+                    .symbolRenderingMode(.palette)
+                    .foregroundStyle(.white, .black.opacity(0.55))
+            }
+            .buttonStyle(.plain)
+            .offset(x: 6, y: -6)
+            .help("Discard image")
+        }
+        .padding(.leading, 24)   // the ⊕ icon + spacing, so the chip sits over the text
+        .transition(.opacity)
+    }
+
+    /// The ⊕ and editor line of the quick-add bar.
+    private var quickAddField: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Image(systemName: "plus.circle.fill")
                 .font(.system(size: 16))
@@ -351,12 +421,17 @@ struct NoteView: View {
             PlainTextEditor(
                 text: $newTaskText,
                 textColor: theme.task,
-                onCommit: { submitNewTask() },
+                focusRequest: controller.quickAddFocusRequest,
+                // Focus loss adds typed text too — but not while an image is waiting: that stays put until
+                // Return (`onSubmit`), so clicking away can never create an image task by accident.
+                onCommit: { if controller.pendingImage == nil { submitNewTask() } },
+                onSubmit: { submitNewTask() },
                 onIndent: { adjustNewTaskLevel(by: 1) },
                 onOutdent: { adjustNewTaskLevel(by: -1) },
                 onFocusChange: { focused in
                     withAnimation(.easeInOut(duration: 0.15)) { quickAddFocused = focused }
-                }
+                },
+                onPasteImage: { controller.stageImage($0) }
             )
             .overlay(alignment: .topLeading) {
                 if newTaskText.isEmpty {
@@ -375,11 +450,6 @@ struct NoteView: View {
                     .transition(.opacity)
             }
         }
-        .padding(.leading, 16 + CGFloat(effectiveNewTaskLevel) * NoteLayout.indentStep)
-        .padding(.trailing, 16)
-        .padding(.vertical, 12)
-        .background(theme.accent.opacity(theme.isGlass ? 0.04 : 0.08))
-        .animation(.snappy(duration: 0.15), value: effectiveNewTaskLevel)
     }
 
     /// The pending indent clamped to what the current last row allows — i.e. the level a new task
@@ -390,11 +460,13 @@ struct NoteView: View {
         return min(max(newTaskLevel, 0), maxAllowed)
     }
 
-    /// Adds the pending task (if any) at the effective indent level and clears the field. Called on
-    /// Return and on focus loss (the editor keeps focus after Return, so rapid entry still works).
+    /// Adds the pending task (if any) — with any image waiting in the field — at the effective indent
+    /// level and clears the field. Called on Return, and on focus loss while no image is waiting (the
+    /// editor keeps focus after Return, so rapid entry still works).
     private func submitNewTask() {
-        guard !newTaskText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        controller.addTask(newTaskText, level: effectiveNewTaskLevel)
+        let hasText = !newTaskText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        guard hasText || controller.pendingImage != nil else { return }
+        controller.addTaskFromQuickAdd(newTaskText, level: effectiveNewTaskLevel)
         newTaskText = ""
     }
 
