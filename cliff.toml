@@ -44,17 +44,11 @@ commit_parsers = [
   { sha = "54afbcee9dba3be7599c1ccd22f46e9d11eb047d", skip = true },
   { message = "^feat", group = "<!-- 0 -->Features" },
   { message = "^fix", group = "<!-- 1 -->Bug Fixes" },
-  { message = "^refactor", group = "<!-- 2 -->Refactor" },
-  { message = "^docs?\\(changelog\\)", skip = true },
-  { message = "^doc", group = "<!-- 3 -->Documentation" },
-  { message = "^perf", group = "<!-- 4 -->Performance" },
-  { message = "^style", group = "<!-- 5 -->Styling" },
-  { message = "^test", group = "<!-- 6 -->Testing" },
-  { message = "^chore\\(release\\): prepare for", skip = true },
-  { message = "^chore\\(deps.*\\)", skip = true },
-  { message = "^chore|^ci|^build", group = "<!-- 7 -->Miscellaneous Tasks" },
-  { body = ".*security", group = "<!-- 8 -->Security" },
-  { message = "^revert", group = "<!-- 9 -->Revert" },
+  { message = "^perf", group = "<!-- 2 -->Performance" },
+  { body = ".*security", group = "<!-- 3 -->Security" },
+  # Release notes and CHANGELOG.md list only what users notice (the website's "What's new" filters the
+  # same groups): docs, chores, CI, build, refactors, styling, tests and reverts are left out.
+  { message = "^(docs?|chore|ci|build|refactor|style|test|revert)", skip = true },
 ]
 protect_breaking_commits = false
 filter_commits = false
