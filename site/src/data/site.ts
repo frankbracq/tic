@@ -30,6 +30,7 @@ export const site = {
   repo: 'https://github.com/kasvith/tic',
   download: 'https://github.com/kasvith/tic/releases/latest',
   changelog: 'https://github.com/kasvith/tic/blob/main/CHANGELOG.md',
+  productHunt: 'https://www.producthunt.com/products/tic?utm_source=badge-follow&utm_medium=badge&utm_source=badge-tic',
   author: { name: 'Kasun Vithanage', url: 'https://kasvith.me', github: 'https://github.com/kasvith' },
 };
 

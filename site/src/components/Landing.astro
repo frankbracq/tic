@@ -47,7 +47,7 @@ const jsonLd = {
       keywords: site.keywords.join(', '),
       author: { '@id': id('author') },
       publisher: { '@id': id('author') },
-      sameAs: [site.repo],
+      sameAs: [site.repo, site.productHunt.split('?')[0]],
     },
     {
       '@type': 'FAQPage',
@@ -129,6 +129,9 @@ const kbd = 'inline-grid min-w-8 place-items-center rounded-md bg-surface px-2 p
           <a href={site.repo} class:list={[btnGhost, 'max-sm:w-full']}><Icon name="github-logo" class="size-5" />View source on GitHub</a>
         </div>
         <p class="mt-5 text-sm text-muted">Free and open source{release && `, version ${release.version}`}. Needs macOS 14 Sonoma or later.</p>
+        <a href={site.productHunt} target="_blank" rel="noopener" class="mt-6 inline-block">
+          <img src="https://api.producthunt.com/widgets/embed-image/v1/follow.svg?product_id=1317575&theme=light" alt="Tic - To-do lists that live on your desktop, not in a menu bar | Product Hunt" width="250" height="54" decoding="async" />
+        </a>
       </div>
       <div class="relative mx-auto w-full max-w-[34rem] sm:h-[33rem]">
         <Note class="max-sm:hidden sm:absolute sm:right-0 sm:top-0" title="This week" color="pink" tasks={weekTasks} quick={false} width="15.5em" />

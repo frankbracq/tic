@@ -6,6 +6,8 @@
 [![CI](https://github.com/kasvith/tic/actions/workflows/ci.yml/badge.svg)](https://github.com/kasvith/tic/actions/workflows/ci.yml)
 [![Release](https://github.com/kasvith/tic/actions/workflows/release.yml/badge.svg)](https://github.com/kasvith/tic/releases)
 
+<a href="https://www.producthunt.com/products/tic?utm_source=badge-follow&utm_medium=badge&utm_source=badge-tic" target="_blank"><img src="https://api.producthunt.com/widgets/embed-image/v1/follow.svg?product_id=1317575&theme=light" alt="Tic - To&#0045;do&#0032;lists&#0032;that&#0032;live&#0032;on&#0032;your&#0032;desktop&#0044;&#0032;not&#0032;in&#0032;a&#0032;menu&#0032;bar | Product Hunt" style="width: 250px; height: 54px;" width="250" height="54" /></a>
+
 <a href="https://tic.kasvith.me"><img src="site/public/og.png" alt="Tic sticky-note to-do lists floating on a Mac desktop"></a>
 
 </div>
