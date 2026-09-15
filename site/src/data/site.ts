@@ -1,7 +1,10 @@
 import type { Task } from '../components/Note.astro';
 
 // Latest release, parsed from the git-cliff CHANGELOG.md on GitHub at build time. A failed fetch
-// just hides the version and "What's new" rather than breaking the build.
+// just hides the version and "What's new" rather than breaking the build. The notes keep only what users
+// notice (see `userFacingGroups`) — not Documentation, Miscellaneous Tasks, Refactor and the like.
+const userFacingGroups = new Set(['Features', 'Bug Fixes', 'Performance', 'Security']);
+
 async function latestRelease() {
   try {
     const res = await fetch('https://raw.githubusercontent.com/kasvith/tic/main/CHANGELOG.md');
@@ -9,7 +12,11 @@ async function latestRelease() {
     const block = (await res.text()).split(/^## /m).find((b) => b.startsWith('['));
     const head = block?.match(/^\[(\d+\.\d+\.\d+)\] - (\d{4}-\d{2}-\d{2})/);
     if (!block || !head) return undefined;
-    const notes = [...block.matchAll(/^- (.+)$/gm)].map((m) => m[1].replace(/^\*\(.+?\)\* /, ''));
+    const notes = block
+      .split(/^### /m)
+      .slice(1)
+      .filter((group) => userFacingGroups.has(group.split('\n')[0].trim()))
+      .flatMap((group) => [...group.matchAll(/^- (.+)$/gm)].map((m) => m[1].replace(/^\*\(.+?\)\* /, '')));
     return { version: head[1], date: head[2], notes };
   } catch {
     return undefined;
@@ -25,7 +32,7 @@ export const site = {
   description:
     'Tic is a free, open-source Mac app that keeps your to-do lists on the desktop as floating sticky notes, with subtasks, Markdown and keyboard shortcuts.',
   summary:
-    'Tic is a free, open-source macOS app that keeps to-do lists on the desktop as floating, Stickies-style sticky notes instead of hiding them behind a menu bar. Each list is its own small window with subtasks, inline Markdown, solid or glass styles and keyboard shortcuts. It needs macOS 14 Sonoma or later.',
+    'Tic is a free, open-source macOS app that keeps to-do lists on the desktop as floating, Stickies-style sticky notes instead of hiding them behind a menu bar. Each list is its own small window with subtasks, inline Markdown, pasted images, solid or glass styles and keyboard shortcuts. It needs macOS 14 Sonoma or later.',
   keywords: ['to-do list', 'sticky notes', 'Stickies alternative', 'desktop checklist', 'task manager', 'macOS', 'open source'],
   repo: 'https://github.com/kasvith/tic',
   download: 'https://github.com/kasvith/tic/releases/latest',
@@ -65,7 +72,7 @@ export const groceryTasks: Task[] = [
 export const weekTasks: Task[] = [
   { t: 'Dentist, <strong>Thu 3pm</strong>' },
   { t: 'Call mum', done: true },
-  { t: 'Book flights to Kandy' },
+  { t: 'Book flights to Rome' },
 ];
 
 export const features = [
@@ -78,6 +85,11 @@ export const features = [
     id: 'subtasks',
     title: 'Subtasks, notes and Markdown',
     body: 'Nest tasks three levels deep. Finish every subtask and the parent ticks itself off. Add a second line with Shift-Return, and write bold, italic, code, strikethrough or links right in the task.',
+  },
+  {
+    id: 'images',
+    title: 'Paste screenshots right into a task',
+    body: 'Copy a screenshot or image and press ⌘V. It sits under the task it belongs to, or waits in Add a task… until you press Return, so you can caption it first. Crop it in place, or double-click to open it in its own window to zoom in or send it to Preview.',
   },
   {
     id: 'look',
@@ -105,6 +117,7 @@ export const shortcuts: { keys: string[]; action: string }[] = [
   { keys: ['⌘', 'N'], action: 'New list' },
   { keys: ['Return'], action: 'Save the task you’re typing' },
   { keys: ['⇧', 'Return'], action: 'New line inside a task' },
+  { keys: ['⌘', 'V'], action: 'Paste an image into a task' },
   { keys: ['⇧', 'Tab'], action: 'Nest a task under the one above' },
   { keys: ['⌃', '⇧', 'Tab'], action: 'Move a subtask back out' },
   { keys: ['↑', '↓'], action: 'Move through search results' },

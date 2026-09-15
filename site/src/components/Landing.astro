@@ -66,6 +66,11 @@ const tripTasks: Task[] = [
   { t: 'Read the <a href="#subtasks">reviews</a>', l: 2 },
   { t: 'Pack\n<em>charger, passport, adapter</em>', editing: true, hint: ['⇧⇥', 'nest'] },
 ];
+const imageTasks: Task[] = [
+  { t: 'Fix the <strong>Sign in</strong> button', img: '/paste-demo.svg', imgHover: true },
+  { t: 'Update the <strong>App Store</strong> screenshots' },
+  { t: 'Reply to design feedback', done: true },
+];
 const tidyTasks: Task[] = [
   { t: 'Oat milk' },
   { t: 'Coffee beans' },
@@ -163,7 +168,13 @@ const kbd = 'inline-grid min-w-8 place-items-center rounded-md bg-surface px-2 p
 
             {f.id === 'subtasks' && (
               <div class={panel}>
-                <Note title="Kandy weekend" color="green" tasks={tripTasks} addSub={{ after: 4, level: 1 }} interactive quick={false} width="21em" style="font-size:14px" />
+                <Note title="Rome weekend" color="green" tasks={tripTasks} addSub={{ after: 4, level: 1 }} interactive quick={false} width="21em" style="font-size:14px" />
+              </div>
+            )}
+
+            {f.id === 'images' && (
+              <div class={panel}>
+                <Note title="Launch" color="purple" tasks={imageTasks} revealed quick={false} width="21em" style="font-size:14px" />
               </div>
             )}
 
@@ -260,7 +271,7 @@ Groceries</code></pre>
         </li>
       </ol>
 
-      {release && (
+      {release && release.notes.length > 0 && (
         <div class="mt-12 rounded-2xl bg-surface p-6 ring-1 ring-line sm:mt-16 sm:rounded-3xl sm:p-8">
           <h3 class="font-display text-2xl tracking-tight font-bold">What’s new in {release.version}</h3>
           <p class="mt-1 text-sm text-muted">Released <time datetime={release.date}>{new Date(release.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</time></p>

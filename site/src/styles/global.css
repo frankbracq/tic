@@ -89,6 +89,15 @@ button.cb { cursor: pointer; }
 .quick .ph { flex: 1; }
 .task .del svg { display: block; width: 100%; }
 
+/* A task's pasted image: under the text (indent + checkbox + gap), capped in height, with the crop /
+   open buttons that appear on hover in the app. */
+.task-img { position: relative; width: fit-content; max-width: calc(100% - 2.8em - var(--l, 0) * 1.54em); margin: 0.15em 0.92em 0.35em calc(2.99em + var(--l, 0) * 1.54em); }
+.task-img img { display: block; max-width: 100%; max-height: 11em; border-radius: 0.46em; box-shadow: 0 0 0 0.5px rgb(0 0 0 / 0.12); }
+.task-img .img-btns { position: absolute; top: 0.46em; right: 0.46em; display: flex; gap: 0.3em; opacity: 0; transition: opacity 0.15s; }
+.task-img:hover .img-btns, .task-img[data-hover] .img-btns { opacity: 1; }
+.task-img .img-btns span { display: grid; place-items: center; width: 1.7em; height: 1.7em; border-radius: 50%; color: rgb(0 0 0 / 0.75); background: rgb(255 255 255 / 0.72); backdrop-filter: blur(8px); }
+.task-img .img-btns svg { width: 0.95em; height: 0.95em; }
+
 .note-bar { display: flex; align-items: center; gap: 0.62em; height: 3.38em; padding: 0 1.23em; }
 .note-bar .note-title { flex: 1; }
 .note-bar .count { font-size: 0.77em; font-weight: 600; padding: 0.15em 0.7em; border-radius: 99px; color: var(--secondary); background: color-mix(in srgb, var(--accent) 18%, transparent); }

@@ -26,7 +26,7 @@ export const GET: APIRoute = () => {
     '2. Tic isn’t notarized yet, so clear the quarantine flag once in Terminal: `xattr -rc /Applications/Tic.app`',
     '3. Open Tic and press ⌘N to make a list. Turn on Launch at Login from the menu bar icon.',
     '',
-    ...(release ? [`## What’s new in ${release.version}`, '', ...release.notes.map((n) => `- ${n}`), ''] : []),
+    ...(release?.notes.length ? [`## What’s new in ${release.version}`, '', ...release.notes.map((n) => `- ${n}`), ''] : []),
     '## FAQ',
     '',
     ...faqs.flatMap((f) => [`### ${f.q}`, '', f.a, '']),

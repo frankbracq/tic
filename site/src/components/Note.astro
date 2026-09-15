@@ -10,6 +10,9 @@ export interface Task {
   hover?: boolean;
   editing?: boolean;
   hint?: [string, string];
+  /** A pasted image shown under the task; `imgHover` reveals its crop / open buttons. */
+  img?: string;
+  imgHover?: boolean;
 }
 export interface Props {
   title: string;
@@ -93,6 +96,14 @@ const plain = (html: string) => html.replace(/<[^>]+>/g, '');
                 ? task.hint && <span class="hint"><kbd>{task.hint[0]}</kbd>{task.hint[1]}</span>
                 : <span class="del"><Icon name="x-circle-fill" /></span>}
             </div>
+            {task.img && (
+              <div class="task-img" style={`--l:${task.l ?? 0}`} data-hover={task.imgHover || undefined}>
+                <img src={task.img} alt={`Screenshot pasted into “${plain(task.t)}”`} loading="lazy" decoding="async" />
+                <span class="img-btns" aria-hidden="true">
+                  <span><Icon name="crop" /></span><span><Icon name="arrows-out-simple" /></span>
+                </span>
+              </div>
+            )}
             {addSub?.after === i && (
               <div class="addsub" style={`--l:${addSub.level}`}>
                 <Icon name="plus-circle" />Add subtask
