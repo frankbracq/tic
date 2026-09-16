@@ -79,7 +79,7 @@ export const features = [
   {
     id: 'float',
     title: 'Lists that stay where you put them',
-    body: 'Each list is its own small window on the desktop. Keep it above everything, show it on every Space, or double-click the title to roll it up. Tic remembers where every note sits.',
+    body: 'Each list is its own small window on the desktop. Keep it above everything, or double-click the title to roll it up. Tic remembers where every note sits.',
   },
   {
     id: 'subtasks',
