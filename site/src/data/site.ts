@@ -138,7 +138,7 @@ export const faqs = [
   },
   {
     q: 'macOS says Tic can’t be opened. What do I do?',
-    a: 'Tic isn’t notarized by Apple yet, so Gatekeeper blocks the first launch. Move Tic.app to Applications and run xattr -rc /Applications/Tic.app in Terminal, or right-click the app, choose Open, then Open again.',
+    a: 'Tic isn’t notarized by Apple yet, so Gatekeeper blocks the first launch. Move Tic.app to Applications and run xattr -c /Applications/Tic.app in Terminal, or right-click the app, choose Open, then Open again.',
   },
   {
     q: 'Where are my lists stored?',
