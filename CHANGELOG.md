@@ -2,6 +2,12 @@
 
 All notable changes to Tic are documented here.
 
+## [0.5.0] - 2026-09-16
+
+### Features
+
+- Reopen only the lists you left open, where they were, on any display
+
 ## [0.4.0] - 2026-09-14
 
 ### Features
