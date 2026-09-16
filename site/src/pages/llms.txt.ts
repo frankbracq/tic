@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { site, release, features, shortcuts, faqs } from '../data/site';
+import { competitors, comparePath } from '../data/compare';
 
 // llms.txt (https://llmstxt.org): a Markdown summary of the page for LLMs, built from the same data.
 export const GET: APIRoute = () => {
@@ -33,6 +34,7 @@ export const GET: APIRoute = () => {
     '## Links',
     '',
     `- [Website](${site.url}/): the Tic landing page`,
+    ...competitors.map((c) => `- [Tic vs ${c.name}](${site.url}${comparePath(c)}): ${c.description}`),
     `- [Download](${site.download}): latest release on GitHub`,
     `- [Source code](${site.repo}): Swift 6, SwiftUI + AppKit, SQLite via GRDB`,
     `- [Changelog](${site.changelog}): release history`,

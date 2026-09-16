@@ -28,7 +28,7 @@ export const release = await latestRelease();
 export const site = {
   name: 'Tic',
   url: 'https://tic.kasvith.me',
-  title: 'Tic: Sticky-note to-do lists for your Mac desktop',
+  title: 'Tic: Free sticky-note to-do lists for your Mac desktop',
   description:
     'Tic is a free, open-source Mac app that keeps your to-do lists on the desktop as floating sticky notes, with subtasks, Markdown and keyboard shortcuts.',
   summary:
@@ -124,6 +124,10 @@ export const shortcuts: { keys: string[]; action: string }[] = [
 ];
 
 export const faqs = [
+  {
+    q: 'How do I put a to-do list on my Mac desktop?',
+    a: 'Install Tic and press ⌘N. The list opens as a sticky note on the desktop and stays where you put it. Click the pin to keep it on top of other windows, or double-click the title to roll it up to a bar.',
+  },
   {
     q: 'Is Tic free?',
     a: 'Yes. Tic is free and open source under the MIT license. The code is on GitHub.',

@@ -1,0 +1,51 @@
+---
+// Base plus the site header and footer, shared by every indexable page.
+import Base from './Base.astro';
+import Icon from '../components/Icon.astro';
+import { site } from '../data/site';
+import { competitors, comparePath } from '../data/compare';
+
+interface Props {
+  title?: string;
+  description?: string;
+  jsonLd?: object;
+}
+const { title, description, jsonLd } = Astro.props;
+---
+
+<Base title={title} description={description} jsonLd={jsonLd}>
+  <a href="#main" class="sr-only z-50 rounded bg-accent px-3 py-2 text-on-accent focus:not-sr-only focus:fixed focus:left-4 focus:top-4">Skip to content</a>
+
+  <header class="mx-auto flex max-w-6xl items-center gap-8 px-5 py-5">
+    <a href="/" class="flex items-center gap-2.5 font-display text-xl font-bold tracking-tight">
+      <img src="/icon.png" alt="" width="36" height="36" class="size-9" />
+      Tic
+    </a>
+    <nav aria-label="Primary" class="hidden items-center gap-7 text-[0.95rem] text-muted md:flex">
+      <a href="/#features" class="hover:text-fg">Features</a>
+      <a href="/#shortcuts" class="hover:text-fg">Shortcuts</a>
+      <a href="/#install" class="hover:text-fg">Install</a>
+      <a href="/#faq" class="hover:text-fg">FAQ</a>
+    </nav>
+    <div class="ml-auto flex items-center gap-4">
+      <a href={site.repo} class="flex items-center gap-1.5 text-[0.95rem] text-muted hover:text-fg" aria-label="Tic on GitHub"><Icon name="github-logo" class="size-5" /><span class="max-sm:hidden">GitHub</span></a>
+      <a href={site.download} class="inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-on-accent transition hover:brightness-110">Download</a>
+    </div>
+  </header>
+
+  <main id="main">
+    <slot />
+  </main>
+
+  <footer class="border-t border-line">
+    <div class="mx-auto flex max-w-6xl flex-wrap items-center gap-x-8 gap-y-3 px-5 py-8 text-sm text-muted">
+      <p>Tic is made by <a href={site.author.url} class="text-fg underline underline-offset-4">{site.author.name}</a> and released under the MIT license.</p>
+      <nav aria-label="Footer" class="flex flex-wrap gap-6 sm:ml-auto">
+        <a href={site.repo} class="hover:text-fg">GitHub</a>
+        <a href={site.download} class="hover:text-fg">Releases</a>
+        <a href={site.changelog} class="hover:text-fg">Changelog</a>
+      </nav>
+      <p class="w-full">Tic vs {competitors.map((c, i) => <>{i > 0 && ' · '}<a href={comparePath(c)} class="hover:text-fg underline underline-offset-4">{c.short}</a></>)}</p>
+    </div>
+  </footer>
+</Base>

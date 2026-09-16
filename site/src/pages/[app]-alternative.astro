@@ -1,0 +1,163 @@
+---
+// "Tic vs X" pages, one per entry in src/data/compare.ts: /stickies-alternative/, /todoist-alternative/, …
+import Site from '../layouts/Site.astro';
+import Note, { type Task } from '../components/Note.astro';
+import Icon from '../components/Icon.astro';
+import { site } from '../data/site';
+import { competitors, features, comparePath, type Competitor } from '../data/compare';
+
+export function getStaticPaths() {
+  return competitors.map((c) => ({ params: { app: c.slug }, props: { c } }));
+}
+
+const { c } = Astro.props as { c: Competitor };
+const url = `${site.url}${comparePath(c)}`;
+const others = competitors.filter((o) => o.slug !== c.slug);
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'WebPage',
+      '@id': `${url}#webpage`,
+      url,
+      name: c.title,
+      description: c.description,
+      inLanguage: 'en',
+      isPartOf: { '@id': `${site.url}/#website` },
+      about: { '@id': `${site.url}/#app` },
+      breadcrumb: { '@id': `${url}#breadcrumb` },
+    },
+    {
+      '@type': 'BreadcrumbList',
+      '@id': `${url}#breadcrumb`,
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'Tic', item: `${site.url}/` },
+        { '@type': 'ListItem', position: 2, name: `Tic vs ${c.name}`, item: url },
+      ],
+    },
+    {
+      '@type': 'FAQPage',
+      '@id': `${url}#faq`,
+      isPartOf: { '@id': `${url}#webpage` },
+      mainEntity: c.faqs.map((f) => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
+    },
+  ],
+};
+
+const errands: Task[] = [
+  { t: 'Return the library books', done: true },
+  { t: 'Post the parcel' },
+  { t: 'Print the label', l: 1, done: true },
+  { t: 'Drop it at the depot', l: 1 },
+  { t: 'Pick up the <strong>dry cleaning</strong>' },
+];
+
+const btn = 'inline-flex items-center gap-2 bg-accent px-5 py-3 font-semibold text-on-accent transition hover:brightness-110 rounded-xl justify-center';
+const btnGhost = 'inline-flex items-center gap-2 px-5 py-3 font-semibold ring-1 ring-line transition hover:bg-surface rounded-xl justify-center';
+const h2 = 'font-display text-[clamp(2rem,4.5vw,3.25rem)] leading-[1.04] tracking-[-0.025em] text-balance font-extrabold';
+---
+
+<Site title={c.title} description={c.description} jsonLd={jsonLd}>
+  <section class="mx-auto grid max-w-6xl items-center gap-10 px-5 pb-14 pt-6 sm:pb-24 sm:pt-8 lg:grid-cols-[1.2fr_1fr] lg:gap-14 lg:pt-16">
+    <div>
+      <p aria-hidden="true" class="headline-line flex items-center gap-3 font-display text-[clamp(1.25rem,2.6vw,2rem)] font-bold text-muted" data-done>
+        <span class="tick"><Icon name="check-circle-fill" /></span>
+        <s class="decoration-2">{c.strike}</s>
+      </p>
+      <h1 class="headline-line mt-4 flex items-start gap-2 font-display text-[clamp(2.4rem,5.6vw,4.5rem)] font-extrabold leading-[0.95] tracking-[-0.035em] text-balance sm:gap-4">
+        <button type="button" data-tick class="tick" aria-label="Tick it off">
+          <Icon name="circle" class="off" /><Icon name="check-circle-fill" class="on" />
+        </button>
+        <span>{c.h1}</span>
+      </h1>
+      <p class="mt-5 max-w-xl leading-relaxed text-muted text-pretty sm:mt-7 sm:text-lg">{c.lede}</p>
+      <div class="mt-7 flex flex-wrap gap-3 sm:mt-9">
+        <a href={site.download} class:list={[btn, 'max-sm:w-full']}><Icon name="download-simple" class="size-5" />Download for Mac</a>
+        <a href="/" class:list={[btnGhost, 'max-sm:w-full']}>See everything Tic does</a>
+      </div>
+      <p class="mt-5 text-sm text-muted">Free and open source. Needs macOS 14 Sonoma or later.</p>
+    </div>
+    <div class="mx-auto w-full max-w-[22em] sm:justify-self-center" style="font-size:15px">
+      <Note title="Errands" color={c.color} tasks={errands} revealed pinned interactive width="22em" />
+    </div>
+  </section>
+
+  <section class="mx-auto max-w-4xl px-5 py-12 sm:py-20">
+    <h2 class={h2}>{c.name} and Tic, side by side</h2>
+    <div class="mt-8 overflow-x-auto sm:mt-12">
+      <table class="w-full text-left text-[0.95rem] sm:text-base">
+        <thead>
+          <tr class="border-b border-line text-sm text-muted">
+            <th scope="col" class="py-3 pr-4 font-medium">&nbsp;</th>
+            <th scope="col" class="py-3 pr-4 font-medium">{c.name}</th>
+            <th scope="col" class="py-3 font-medium">Tic</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-line">
+          {features.map((f) => (
+            <tr class="align-top">
+              <th scope="row" class="py-3.5 pr-4 font-semibold">{f.label}</th>
+              <td class="py-3.5 pr-4 text-muted">{c.values[f.id]}</td>
+              <td class="py-3.5">{f.tic}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="border-y border-line bg-surface/60 py-12 sm:py-20">
+    <div class="mx-auto grid max-w-6xl gap-8 px-5 lg:grid-cols-[1fr_1.3fr] lg:gap-12">
+      <div>
+        <h2 class={h2}>{c.keep.heading}</h2>
+      </div>
+      <div class="space-y-4 leading-relaxed text-muted sm:text-lg">
+        {c.keep.body.map((p) => <p>{p}</p>)}
+      </div>
+    </div>
+  </section>
+
+  <section class="mx-auto max-w-3xl px-5 py-12 sm:py-20">
+    <h2 class={h2}>Questions</h2>
+    <div class="mt-10 divide-y divide-line border-y border-line">
+      {c.faqs.map((f) => (
+        <details class="group py-5">
+          <summary class="flex cursor-pointer list-none items-center justify-between gap-6 font-medium sm:text-lg">
+            {f.q}
+            <Icon name="plus" class="size-5 shrink-0 text-muted transition group-open:rotate-45" />
+          </summary>
+          <p class="mt-3 leading-relaxed text-muted">{f.a}</p>
+        </details>
+      ))}
+    </div>
+    <p class="mt-8 text-muted">
+      Also compare Tic with {others.map((o, i) => (
+        <>
+          {i > 0 && (i === others.length - 1 ? ' or ' : ', ')}
+          <a href={comparePath(o)} class="text-fg underline underline-offset-4">{o.name}</a>
+        </>
+      ))}.
+    </p>
+  </section>
+
+  <section class="px-5 py-16 text-center sm:py-24">
+    <img src="/icon.png" alt="Tic app icon" width="112" height="112" loading="lazy" class="mx-auto size-28" />
+    <h2 class:list={[h2, 'mx-auto mt-6 max-w-2xl']}>Give your next list a checkbox</h2>
+    <div class="mt-8 flex flex-wrap justify-center gap-3">
+      <a href={site.download} class:list={[btn, 'max-sm:w-full']}><Icon name="download-simple" class="size-5" />Download for Mac</a>
+      <a href={site.repo} class:list={[btnGhost, 'max-sm:w-full']}><Icon name="github-logo" class="size-5" />View source on GitHub</a>
+    </div>
+  </section>
+</Site>
+
+<script>
+  document.addEventListener('click', (event) => {
+    const check = (event.target as Element).closest('button.cb, button[data-tick]');
+    if (!check) return;
+    const row = check.closest('.task, .headline-line')!;
+    const done = !row.hasAttribute('data-done');
+    row.toggleAttribute('data-done', done);
+    check.setAttribute('aria-pressed', String(done));
+  });
+</script>

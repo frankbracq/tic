@@ -1,9 +1,10 @@
 ---
-import Base from '../layouts/Base.astro';
+import Site from '../layouts/Site.astro';
 import Note, { type Task } from './Note.astro';
 import Palette from './Palette.astro';
 import Icon from './Icon.astro';
 import { site, release, features, shortcuts, faqs, welcomeTasks, weekTasks, groceryTasks } from '../data/site';
+import { competitors, comparePath } from '../data/compare';
 
 const id = (name: string) => `${site.url}/#${name}`;
 const ogImage = { '@type': 'ImageObject', url: `${site.url}/og.png`, width: 1200, height: 630 };
@@ -95,27 +96,7 @@ const panel = 'relative grid place-items-center overflow-hidden rounded-2xl px-4
 const kbd = 'inline-grid min-w-8 place-items-center rounded-md bg-surface px-2 py-1 font-sans text-sm font-medium ring-1 ring-line shadow-[0_1px_0_var(--line)]';
 ---
 
-<Base jsonLd={jsonLd}>
-  <a href="#main" class="sr-only z-50 rounded bg-accent px-3 py-2 text-on-accent focus:not-sr-only focus:fixed focus:left-4 focus:top-4">Skip to content</a>
-
-  <header class="mx-auto flex max-w-6xl items-center gap-8 px-5 py-5">
-    <a href="/" class="flex items-center gap-2.5 font-display text-xl font-bold tracking-tight">
-      <img src="/icon.png" alt="" width="36" height="36" class="size-9" />
-      Tic
-    </a>
-    <nav aria-label="Primary" class="hidden items-center gap-7 text-[0.95rem] text-muted md:flex">
-      <a href="#features" class="hover:text-fg">Features</a>
-      <a href="#shortcuts" class="hover:text-fg">Shortcuts</a>
-      <a href="#install" class="hover:text-fg">Install</a>
-      <a href="#faq" class="hover:text-fg">FAQ</a>
-    </nav>
-    <div class="ml-auto flex items-center gap-4">
-      <a href={site.repo} class="flex items-center gap-1.5 text-[0.95rem] text-muted hover:text-fg" aria-label="Tic on GitHub"><Icon name="github-logo" class="size-5" /><span class="max-sm:hidden">GitHub</span></a>
-      <a href={site.download} class:list={[btn, 'px-4 py-2 text-sm']}>Download</a>
-    </div>
-  </header>
-
-  <main id="main">
+<Site jsonLd={jsonLd}>
     <section class="mx-auto grid max-w-6xl items-center gap-10 px-5 pb-14 pt-6 sm:pb-24 sm:pt-8 lg:grid-cols-[1.1fr_1fr] lg:gap-14 lg:pt-16">
       <div>
         <p aria-hidden="true" class="headline-line flex items-center gap-3 font-display text-[clamp(1.25rem,2.6vw,2rem)] font-bold text-muted" data-done>
@@ -126,7 +107,7 @@ const kbd = 'inline-grid min-w-8 place-items-center rounded-md bg-surface px-2 p
           <button type="button" data-tick class="tick" aria-label="Tick it off">
             <Icon name="circle" class="off" /><Icon name="check-circle-fill" class="on" />
           </button>
-          <span>To-do lists that live on your desktop</span>
+          <span>Sticky-note to-do lists that live on your Mac desktop</span>
         </h1>
         <p class="mt-5 max-w-xl leading-relaxed text-muted text-pretty sm:mt-7 sm:text-lg">{lede}</p>
         <div class="mt-7 flex flex-wrap gap-3 sm:mt-9">
@@ -294,6 +275,9 @@ Groceries</code></pre>
           </details>
         ))}
       </div>
+      <p class="mt-6 text-muted">
+        Coming from {competitors.map((c, i) => <>{i > 0 && (i === competitors.length - 1 ? ' or ' : ', ')}<a href={comparePath(c)} class="text-fg underline underline-offset-4">{c.name}</a></>)}? See how Tic compares.
+      </p>
     </section>
 
     <section class="px-5 py-16 text-center sm:py-24">
@@ -304,19 +288,7 @@ Groceries</code></pre>
         <a href={site.repo} class:list={[btnGhost, 'max-sm:w-full']}><Icon name="github-logo" class="size-5" />Star on GitHub</a>
       </div>
     </section>
-  </main>
-
-  <footer class="border-t border-line">
-    <div class="mx-auto flex max-w-6xl flex-wrap items-center gap-x-8 gap-y-3 px-5 py-8 text-sm text-muted">
-      <p>Tic is made by <a href={site.author.url} class="text-fg underline underline-offset-4">{site.author.name}</a> and released under the MIT license.</p>
-      <nav aria-label="Footer" class="flex gap-6 sm:ml-auto">
-        <a href={site.repo} class="hover:text-fg">GitHub</a>
-        <a href={site.download} class="hover:text-fg">Releases</a>
-        <a href={site.changelog} class="hover:text-fg">Changelog</a>
-      </nav>
-    </div>
-  </footer>
-</Base>
+</Site>
 
 <script>
   document.addEventListener('click', (event) => {
