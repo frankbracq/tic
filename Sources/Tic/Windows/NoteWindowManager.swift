@@ -11,6 +11,15 @@ final class NoteWindowManager: NSObject, NSWindowDelegate {
     private var pendingFrameSaves: [UUID: Task<Void, Never>] = [:]
     /// Height a note had before it was rolled up, so it restores to the right size on expand.
     private var expandedHeights: [UUID: CGFloat] = [:]
+    /// Each open note's frame as saved in the DB — the last spot the user chose. Only user drags and
+    /// resizes update it; a placement we or macOS make (display unplugged, launch rescue) never does,
+    /// so a note parked on the laptop at home still returns to its monitor at the office.
+    private var savedFrames: [UUID: CGRect] = [:]
+    /// True while `place` moves a panel, so its own `windowDidMove` isn't persisted.
+    private var placing = false
+    /// Frame saves are dropped until this instant after a display change: macOS moves windows off a
+    /// vanished display at about the same time as the notification, in either order.
+    private var suppressSavesUntil = Date.distantPast
     /// The one image window, reused for whichever image was opened last.
     private var imageWindow: NSWindow?
     /// The note whose image the image window is showing, so closing that note closes it too.
@@ -19,6 +28,10 @@ final class NoteWindowManager: NSObject, NSWindowDelegate {
     init(appDatabase: AppDatabase) {
         self.appDatabase = appDatabase
         super.init()
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(screensDidChange),
+            name: NSApplication.didChangeScreenParametersNotification, object: nil
+        )
     }
 
     // MARK: - Opening notes
@@ -51,8 +64,8 @@ final class NoteWindowManager: NSObject, NSWindowDelegate {
         controller.start()
 
         let panel = NotePanel(note: note, content: AnyView(NoteView(controller: controller)))
-        panel.delegate = self
         panels[note.id] = panel
+        savedFrames[note.id] = CGRect(x: note.frameX, y: note.frameY, width: note.frameW, height: note.frameH)
 
         // Live-window side effects. Weak captures so the closures never keep the panel alive
         // past close (windowWillClose nils the controller, releasing them).
@@ -79,7 +92,7 @@ final class NoteWindowManager: NSObject, NSWindowDelegate {
             controller?.stageImage(data)
         }
 
-        ensureOnScreen(panel)
+        place(panel)
         if makeKey {
             panel.makeKeyAndOrderFront(nil)   // become key → the menu bar popover resigns/dismisses
         } else {
@@ -90,6 +103,7 @@ final class NoteWindowManager: NSObject, NSWindowDelegate {
         if note.isCollapsed {
             setCollapsed(panel, collapsed: true, animate: false)
         }
+        panel.delegate = self   // only now: the placement and roll-up above aren't user moves to persist
         return panel
     }
 
@@ -159,21 +173,40 @@ final class NoteWindowManager: NSObject, NSWindowDelegate {
         panel.setFrame(newFrame, display: true, animate: animate)
     }
 
-    /// If a restored frame leaves the note essentially off every display (e.g. the one it was on
-    /// was disconnected since it was last saved), recenter it on the main screen so it's never lost.
-    /// Frames are global coordinates spanning all displays, so a note on a second monitor restores
-    /// there as long as some screen still contains it.
-    private func ensureOnScreen(_ panel: NotePanel) {
-        guard let screen = NSScreen.main else { return }
-        let screens = NSScreen.screens.map(\.visibleFrame)
-        if !Self.isVisible(panel.frame, onAnyOf: screens) {
-            let visible = screen.visibleFrame
-            let origin = NSPoint(
-                x: visible.midX - panel.frame.width / 2,
-                y: visible.midY - panel.frame.height / 2
-            )
-            panel.setFrameOrigin(origin)
-        }
+    /// Puts a panel where its saved frame says, as long as some connected display shows it; otherwise
+    /// parks it on the main display (nearest edge, same size). Runs at open and on every display
+    /// change, so unplugging a monitor parks its notes and plugging it back returns them to the exact
+    /// spot. Frames are global coordinates spanning all displays (as Stickies stores them), and this
+    /// never persists: the saved frame stays the user's.
+    private func place(_ panel: NotePanel) {
+        guard let saved = savedFrames[panel.noteID], let main = NSScreen.main else { return }
+        let target = Self.placement(for: saved, screens: NSScreen.screens.map(\.visibleFrame), main: main.visibleFrame)
+        // Keep the live size (a rolled-up note sits at its collapsed height); align the top-left corner.
+        placing = true
+        panel.setFrameOrigin(NSPoint(x: target.minX, y: target.maxY - panel.frame.height))
+        placing = false
+    }
+
+    /// `saved` itself when at least an 80×80 corner lies on one of `screens`; else `saved` shifted the
+    /// shortest distance that fits it on `main` (a note taller than the screen keeps its top edge on).
+    nonisolated static func placement(for saved: CGRect, screens: [CGRect], main: CGRect) -> CGRect {
+        if isVisible(saved, onAnyOf: screens) { return saved }
+        var frame = saved
+        frame.origin.x = min(max(saved.minX, main.minX), main.maxX - saved.width)
+        frame.origin.y = min(max(saved.minY, main.minY), main.maxY - saved.height)
+        return frame
+    }
+
+    /// A display was plugged in, unplugged, or rearranged. macOS shoves windows off a vanished display
+    /// onto a remaining one, which must not be saved as the user's choice: drop the moves it caused
+    /// (already pending or still to come) and re-place every note from its saved frame.
+    @objc private func screensDidChange() {
+        // ponytail: a 2s blanket, since macOS moves windows within the same reconfiguration; a user drag
+        // inside it is dropped — make it precise if that ever shows.
+        suppressSavesUntil = Date().addingTimeInterval(2)
+        for task in pendingFrameSaves.values { task.cancel() }
+        pendingFrameSaves.removeAll()
+        for panel in panels.values { place(panel) }
     }
 
     /// True when at least an 80×80 corner of `frame` lies on one of `screens` (enough to grab).
@@ -216,6 +249,7 @@ final class NoteWindowManager: NSObject, NSWindowDelegate {
         pendingFrameSaves[panel.noteID]?.cancel()
         pendingFrameSaves[panel.noteID] = nil
         expandedHeights[panel.noteID] = nil
+        savedFrames[panel.noteID] = nil
         controllers[panel.noteID]?.stop()
         controllers[panel.noteID] = nil
         panels[panel.noteID] = nil
@@ -225,6 +259,8 @@ final class NoteWindowManager: NSObject, NSWindowDelegate {
     /// gesture settles (300ms idle).
     private func scheduleFrameSave(_ notification: Notification) {
         guard let panel = notification.object as? NotePanel else { return }
+        // Not a user move: our own placement, or macOS relocating windows around a display change.
+        if placing || Date() < suppressSavesUntil { return }
         let id = panel.noteID
         let live = panel.frame
 
@@ -236,6 +272,7 @@ final class NoteWindowManager: NSObject, NSWindowDelegate {
         let x = live.origin.x
         let y = collapsed ? (live.maxY - height) : live.origin.y
         let width = live.width
+        savedFrames[id] = CGRect(x: x, y: y, width: width, height: height)
 
         pendingFrameSaves[id]?.cancel()
         pendingFrameSaves[id] = Task { [appDatabase] in
