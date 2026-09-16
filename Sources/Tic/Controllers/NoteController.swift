@@ -344,7 +344,11 @@ final class NoteController {
             return TaskCompletionUpdate(id: a.id, isDone: a.isDone, completedAt: a.completedAt)
         }
     }
+}
 
+// MARK: - Note-level actions: title, appearance, window behaviour, display options, lifecycle
+
+extension NoteController {
     // MARK: - Note actions
 
     func commitTitle(_ rawTitle: String) {

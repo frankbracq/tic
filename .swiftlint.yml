@@ -12,6 +12,10 @@ disabled_rules:
   - trailing_comma
   - multiple_closures_with_trailing_closure
 
+file_length:
+  warning: 400
+  ignore_comment_only_lines: true   # doc comments are a feature here, not bulk
+
 line_length:
   warning: 120
   error: 200

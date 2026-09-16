@@ -81,7 +81,8 @@ panels**, and a few responsibilities are deliberately split across the AppKit/Sw
   id-matched `indentLevelChanges` diff. Kept separate so it's unit-testable in isolation.
 - **`PlainTextEditor`** (`NSViewRepresentable` over `NSTextView`) — the task / quick-add editor.
   AppKit, not SwiftUI `TextField`, because that control can't reliably insert newlines or intercept
-  Tab on macOS (see the editing convention below). **`ShortcutHint`** is the small keycap-chip label.
+  Tab on macOS (see the editing convention below). **`QuickAddBar`** is the add-a-task bar along the
+  bottom of a note (owns the typed text and pending indent). **`ShortcutHint`** is the small keycap-chip label.
 - **`TaskImage`** (pure CoreGraphics/ImageIO, no AppKit / no DB) + **`TaskImageView`** — pasted images:
   normalise/thumbnail/crop/preview-file helpers and the crop maths (`dragging`, `moving`), and the view
   that draws a task's image with its hover buttons, context menu, and crop mode. **`ImageViewer`** is the
