@@ -2,6 +2,17 @@
 
 All notable changes to Tic are documented here.
 
+## [0.6.0] - 2026-09-16
+
+### Features
+
+- Keep notes on their display across unplug and relaunch
+- Check GitHub Releases for updates and surface them quietly
+
+### Bug Fixes
+
+- *(packaging)* Don't abort when no git tag is reachable (shallow CI checkout)
+
 ## [0.5.0] - 2026-09-16
 
 ### Features
