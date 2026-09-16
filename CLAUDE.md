@@ -34,9 +34,10 @@ open Package.swift          # opens the package in Xcode for GUI editing / previ
 - **Tests:** `swift test` (Swift Testing; `@testable import Tic` works on the executable target —
   no separate library). `Assets/` holds source icon art (AppIcon / Flat / MenuBar); the menu-bar
   glyph is also copied to `Sources/Tic/Resources/MenuBarIcon.png` and bundled via SwiftPM.
-- **CI/Release:** `.github/workflows/` — `ci.yml` (build + test + lint), `changelog.yml`
-  (git-cliff updates `CHANGELOG.md` on main), `release.yml` (push a `v*` tag → builds `Tic.app`,
-  git-cliff release notes, publishes a GitHub Release).
+- **CI/Release:** `.github/workflows/` — `ci.yml` (build + test + lint) and `release.yml` (push a
+  `v*` tag → builds `Tic.app`, git-cliff release notes, publishes a GitHub Release, commits the
+  regenerated `CHANGELOG.md` to main, then POSTs the `CF_DEPLOY_HOOK` secret so the site's
+  What's new rebuilds — that commit is `[skip ci]`, which Cloudflare honours).
 - To launch headlessly for a no-crash smoke check (the GUI can't be screenshotted from a
   sandbox), run `.build/debug/Tic` in the background and grep its stderr for the
   `[Tic] restored N note panel(s)` log line.

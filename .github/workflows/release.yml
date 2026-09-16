@@ -81,3 +81,13 @@ jobs:
             git commit -m "docs(changelog): update for ${GITHUB_REF_NAME} [skip ci]"
             git push origin main
           fi
+
+      # The site's "What's new" reads CHANGELOG.md at build time, and the commit above carries
+      # [skip ci], so ask Cloudflare Pages for a fresh build. Set the CF_DEPLOY_HOOK secret to the
+      # deploy hook URL (Pages project → Settings → Builds → Deploy hooks).
+      - name: Redeploy the site
+        env:
+          CF_DEPLOY_HOOK: ${{ secrets.CF_DEPLOY_HOOK }}
+        run: |
+          if [ -z "$CF_DEPLOY_HOOK" ]; then echo "CF_DEPLOY_HOOK secret not set; skipping"; exit 0; fi
+          curl -fsS -X POST "$CF_DEPLOY_HOOK" >/dev/null && echo "Cloudflare deploy triggered"
