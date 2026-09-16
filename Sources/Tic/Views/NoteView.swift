@@ -32,8 +32,6 @@ struct NoteView: View {
     @Bindable var controller: NoteController
 
     @State private var titleText: String
-    @State private var newTaskText: String = ""
-    @State private var newTaskLevel: Int = 0
     @State private var revealed = false
     @State private var draggingTaskID: TaskItem.ID?
     @State private var dragOffsetY: CGFloat = 0
@@ -51,7 +49,6 @@ struct NoteView: View {
     // bottom of that group. Holds the section root (level-0) id, so the affordance stays put as the
     // pointer moves across the heading, its children, and the affordance itself — it never darts away.
     @State private var activeSectionID: TaskItem.ID?
-    @State private var quickAddFocused = false   // show the quick-add's newline hint only while typing
     // The task whose image is under the pointer or being cropped; its row's reorder drag is paused.
     @State private var imageInteractionTaskID: TaskItem.ID?
     @FocusState private var titleFocused: Bool
@@ -126,7 +123,7 @@ struct NoteView: View {
                 titleFocused: $titleFocused
             )
             taskList
-            quickAdd
+            QuickAddBar(controller: controller, theme: theme)
         }
     }
 
@@ -182,7 +179,8 @@ struct NoteView: View {
             }
             .overlay(alignment: .top) {
                 if display.isEmpty {
-                    Text(controller.tasks.isEmpty ? "No tasks yet — add one below" : "All done — completed tasks hidden")
+                    Text(controller.tasks.isEmpty
+                         ? "No tasks yet — add one below" : "All done — completed tasks hidden")
                         .font(.callout)
                         .foregroundStyle(theme.secondary)
                         .padding(.top, 12)
@@ -232,14 +230,14 @@ struct NoteView: View {
     /// Where to show the "Add subtask" affordance: after the last row of the hovered heading's group,
     /// indented one level under the heading. Hidden during a drag or while a rapid-add run is already
     /// in progress (Return drives that, so the affordance would only be noise).
-    private var activeAdd: (afterIndex: Int, level: Int, parentID: TaskItem.ID)? {
+    private var activeAdd: ActiveAdd? {
         guard !isDragging, addingRowID == nil, let sectionID = activeSectionID else { return nil }
         let display = controller.displayedTasks
         guard let rootIndex = display.firstIndex(where: { $0.id == sectionID }) else { return nil }
         let root = display[rootIndex]
         guard root.indentLevel < TaskItem.maxIndentLevel else { return nil }
         let afterIndex = TaskOutline.subtreeRange(display, at: rootIndex).upperBound - 1
-        return (afterIndex, root.indentLevel + 1, root.id)
+        return ActiveAdd(afterIndex: afterIndex, level: root.indentLevel + 1, parentID: root.id)
     }
 
     private func row(_ task: TaskItem) -> some View {
@@ -295,7 +293,18 @@ struct NoteView: View {
             including: controller.isReorderable && imageInteractionTaskID != task.id ? .all : .subviews
         )
     }
+}
 
+/// Where the "Add subtask" affordance sits: after row `afterIndex`, indented to `level`, under `parentID`.
+private struct ActiveAdd {
+    let afterIndex: Int
+    let level: Int
+    let parentID: TaskItem.ID
+}
+
+// MARK: - Reorder drag
+
+extension NoteView {
     /// Records whether `id`'s image is being pointed at or cropped; that row's reorder drag pauses meanwhile.
     private func setImageInteraction(_ id: TaskItem.ID, _ active: Bool) {
         if active {
@@ -361,120 +370,6 @@ struct NoteView: View {
             .frame(height: 2)
             .padding(.leading, 12 + CGFloat(level) * NoteLayout.indentStep)
             .padding(.trailing, 12)
-    }
-
-    // MARK: - Quick add
-
-    private var quickAdd: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if controller.pendingImage != nil { pendingImageChip }
-            quickAddField
-        }
-        .padding(.leading, 16 + CGFloat(effectiveNewTaskLevel) * NoteLayout.indentStep)
-        .padding(.trailing, 16)
-        .padding(.vertical, 12)
-        .background(theme.accent.opacity(theme.isGlass ? 0.04 : 0.08))
-        .animation(.snappy(duration: 0.15), value: effectiveNewTaskLevel)
-    }
-
-    /// An image pasted into the quick-add, waiting for Return: a small thumbnail, lined up with the text,
-    /// with a ✕ to discard it.
-    private var pendingImageChip: some View {
-        ZStack(alignment: .topTrailing) {
-            Group {
-                if let thumbnail = controller.pendingThumbnail {
-                    Image(decorative: thumbnail, scale: 1)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                } else {
-                    RoundedRectangle(cornerRadius: 5, style: .continuous)
-                        .fill(theme.accent.opacity(0.15))
-                        .aspectRatio(1, contentMode: .fit)
-                }
-            }
-            .frame(maxWidth: 160, maxHeight: 44, alignment: .leading)
-            .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
-
-            Button { controller.discardPendingImage() } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 14))
-                    .symbolRenderingMode(.palette)
-                    .foregroundStyle(.white, .black.opacity(0.55))
-            }
-            .buttonStyle(.plain)
-            .offset(x: 6, y: -6)
-            .help("Discard image")
-        }
-        .padding(.leading, 24)   // the ⊕ icon + spacing, so the chip sits over the text
-        .transition(.opacity)
-    }
-
-    /// The ⊕ and editor line of the quick-add bar.
-    private var quickAddField: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Image(systemName: "plus.circle.fill")
-                .font(.system(size: 16))
-                .foregroundStyle(theme.accent.opacity(0.7))
-
-            // Multiline like the rows: Return adds the task, Shift/Option-Return inserts a newline,
-            // and Shift-Tab / Ctrl-Shift-Tab pre-sets the nesting level of the task being typed.
-            PlainTextEditor(
-                text: $newTaskText,
-                textColor: theme.task,
-                focusRequest: controller.quickAddFocusRequest,
-                // Focus loss adds typed text too — but not while an image is waiting: that stays put until
-                // Return (`onSubmit`), so clicking away can never create an image task by accident.
-                onCommit: { if controller.pendingImage == nil { submitNewTask() } },
-                onSubmit: { submitNewTask() },
-                onIndent: { adjustNewTaskLevel(by: 1) },
-                onOutdent: { adjustNewTaskLevel(by: -1) },
-                onFocusChange: { focused in
-                    withAnimation(.easeInOut(duration: 0.15)) { quickAddFocused = focused }
-                },
-                onPasteImage: { controller.stageImage($0) }
-            )
-            .overlay(alignment: .topLeading) {
-                if newTaskText.isEmpty {
-                    Text(effectiveNewTaskLevel > 0 ? "Add a subtask…" : "Add a task…")
-                        .foregroundStyle(theme.secondary)
-                        .padding(.top, PlainTextEditor.topInset)   // align with the editor's text inset
-                        .allowsHitTesting(false)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)   // fill the bar so text wraps at the note width
-            .editorFirstBaseline()
-
-            // Minimal hint: the newline shortcut, shown only while the quick-add has focus.
-            if quickAddFocused {
-                ShortcutHint(glyphs: "⇧⏎", label: "line", theme: theme)
-                    .transition(.opacity)
-            }
-        }
-    }
-
-    /// The pending indent clamped to what the current last row allows — i.e. the level a new task
-    /// will *actually* land at. Computed from the live task list so the field's indent and
-    /// placeholder stay truthful even after the list changes by delete / outdent / reorder.
-    private var effectiveNewTaskLevel: Int {
-        let maxAllowed = controller.tasks.last.map { min(TaskItem.maxIndentLevel, $0.indentLevel + 1) } ?? 0
-        return min(max(newTaskLevel, 0), maxAllowed)
-    }
-
-    /// Adds the pending task (if any) — with any image waiting in the field — at the effective indent
-    /// level and clears the field. Called on Return, and on focus loss while no image is waiting (the
-    /// editor keeps focus after Return, so rapid entry still works).
-    private func submitNewTask() {
-        let hasText = !newTaskText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        guard hasText || controller.pendingImage != nil else { return }
-        controller.addTaskFromQuickAdd(newTaskText, level: effectiveNewTaskLevel)
-        newTaskText = ""
-    }
-
-    /// Nudges the pending new-task level, clamped to what the last existing row allows so the
-    /// quick-add indent can never promise a depth the outline wouldn't accept.
-    private func adjustNewTaskLevel(by delta: Int) {
-        let maxAllowed = controller.tasks.last.map { min(TaskItem.maxIndentLevel, $0.indentLevel + 1) } ?? 0
-        newTaskLevel = min(max(effectiveNewTaskLevel + delta, 0), maxAllowed)
     }
 }
 

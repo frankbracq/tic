@@ -80,7 +80,8 @@ struct NoteHeaderView: View {
         .animation(.easeInOut(duration: 0.15), value: isRevealed)
         .animation(.easeInOut(duration: 0.15), value: controller.completedCount > 0)
         .confirmationDialog(
-            "Delete \(controller.completedCount) completed task\(controller.completedCount == 1 ? "" : "s")? This can't be undone.",
+            "Delete \(controller.completedCount) completed task\(controller.completedCount == 1 ? "" : "s")? "
+                + "This can't be undone.",
             isPresented: $showClearConfirm,
             titleVisibility: .visible
         ) {

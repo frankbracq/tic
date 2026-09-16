@@ -23,10 +23,10 @@ final class NoteWindowManager: NSObject, NSWindowDelegate {
 
     // MARK: - Opening notes
 
-    /// Opens a floating panel for every saved note (called at launch).
+    /// Opens a floating panel for every note that was on screen at last quit (called at launch).
     func restoreAll() async {
         do {
-            let notes = try await appDatabase.allNotes()
+            let notes = try await appDatabase.openNotes()
             for note in notes { openNote(note, makeKey: false) }   // launch: show, don't steal focus
             NSLog("[Tic] restored \(notes.count) note panel(s)")
         } catch {
@@ -43,6 +43,9 @@ final class NoteWindowManager: NSObject, NSWindowDelegate {
             existing.makeKeyAndOrderFront(nil)
             return existing
         }
+        if !note.isOpen {
+            Task { [appDatabase] in try? await appDatabase.updateNoteOpen(id: note.id, isOpen: true) }
+        }
         let controller = NoteController(note: note, database: appDatabase)
         controllers[note.id] = controller
         controller.start()
@@ -56,7 +59,9 @@ final class NoteWindowManager: NSObject, NSWindowDelegate {
         controller.onApplyBehavior = { [weak panel] floatOnTop, showOnAllSpaces in
             panel?.apply(floatOnTop: floatOnTop, showOnAllSpaces: showOnAllSpaces)
         }
-        controller.onClose = { [weak panel] in
+        controller.onClose = { [weak panel, appDatabase] in
+            // Only the user's X marks a note closed (quit doesn't), so launch restores what was visible.
+            Task { try? await appDatabase.updateNoteOpen(id: note.id, isOpen: false) }
             panel?.close()   // triggers windowWillClose → teardown; does NOT delete the note
         }
         controller.onSetCollapsed = { [weak self, weak panel] collapsed in
@@ -154,18 +159,28 @@ final class NoteWindowManager: NSObject, NSWindowDelegate {
         panel.setFrame(newFrame, display: true, animate: animate)
     }
 
-    /// If a restored frame leaves the note essentially off-screen (e.g. a display was
-    /// disconnected since it was last saved), recenter it on the main screen so it's never lost.
+    /// If a restored frame leaves the note essentially off every display (e.g. the one it was on
+    /// was disconnected since it was last saved), recenter it on the main screen so it's never lost.
+    /// Frames are global coordinates spanning all displays, so a note on a second monitor restores
+    /// there as long as some screen still contains it.
     private func ensureOnScreen(_ panel: NotePanel) {
         guard let screen = NSScreen.main else { return }
-        let visible = screen.visibleFrame
-        let overlap = visible.intersection(panel.frame)
-        if overlap.width < 80 || overlap.height < 80 {
+        let screens = NSScreen.screens.map(\.visibleFrame)
+        if !Self.isVisible(panel.frame, onAnyOf: screens) {
+            let visible = screen.visibleFrame
             let origin = NSPoint(
                 x: visible.midX - panel.frame.width / 2,
                 y: visible.midY - panel.frame.height / 2
             )
             panel.setFrameOrigin(origin)
+        }
+    }
+
+    /// True when at least an 80×80 corner of `frame` lies on one of `screens` (enough to grab).
+    nonisolated static func isVisible(_ frame: CGRect, onAnyOf screens: [CGRect]) -> Bool {
+        screens.contains { screen in
+            let overlap = screen.intersection(frame)
+            return overlap.width >= 80 && overlap.height >= 80
         }
     }
 
