@@ -30,7 +30,7 @@ struct QuickAddBar: View {
                 if let thumbnail = controller.pendingThumbnail {
                     Image(decorative: thumbnail, scale: 1)
                         .resizable()
-                        .aspectRatio(contentMode: .fit)
+                        .scaledToFit()
                 } else {
                     RoundedRectangle(cornerRadius: 5, style: .continuous)
                         .fill(theme.accent.opacity(0.15))
