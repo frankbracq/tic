@@ -107,6 +107,13 @@ final class AppDatabase: Sendable {
             }
         }
 
+        // Existing notes default to open, so upgrading changes nothing until a note is closed.
+        migrator.registerMigration("v5_note_is_open") { db in
+            try db.alter(table: "note") { t in
+                t.add(column: "isOpen", .boolean).notNull().defaults(to: true)
+            }
+        }
+
         return migrator
     }
 
@@ -115,6 +122,13 @@ final class AppDatabase: Sendable {
     func allNotes() async throws -> [Note] {
         try await dbQueue.read { db in
             try Note.order(Note.Columns.sortIndex).fetchAll(db)
+        }
+    }
+
+    /// The notes whose panels were on screen at last quit (launch restore).
+    func openNotes() async throws -> [Note] {
+        try await dbQueue.read { db in
+            try Note.filter(Note.Columns.isOpen == true).order(Note.Columns.sortIndex).fetchAll(db)
         }
     }
 
@@ -197,6 +211,16 @@ final class AppDatabase: Sendable {
             try db.execute(
                 sql: "UPDATE note SET floatOnTop = ?, showOnAllSpaces = ?, isCollapsed = ?, updatedAt = ? WHERE id = ?",
                 arguments: [floatOnTop, showOnAllSpaces, isCollapsed, Date(), id]
+            )
+        }
+    }
+
+    /// Targeted write of whether a note's panel is on screen (closed via X vs. opened).
+    func updateNoteOpen(id: UUID, isOpen: Bool) async throws {
+        try await dbQueue.write { db in
+            try db.execute(
+                sql: "UPDATE note SET isOpen = ? WHERE id = ?",
+                arguments: [isOpen, id]
             )
         }
     }

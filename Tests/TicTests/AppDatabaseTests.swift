@@ -60,6 +60,22 @@ struct AppDatabaseTests {
         #expect(next.title == "List 3")
     }
 
+    @Test("openNotes lists only notes still open; updateNoteOpen flips just that flag")
+    func openNotesFollowsIsOpen() async throws {
+        let db = try makeDB()
+        let kept = try await db.insertNewNote(Note())
+        let closed = try await db.insertNewNote(Note(title: "Closed", floatOnTop: true))
+        try await db.updateNoteOpen(id: closed.id, isOpen: false)
+
+        #expect(try await db.openNotes().map(\.id) == [kept.id])
+        let stillThere = try await db.allNotes().first { $0.id == closed.id }
+        #expect(stillThere?.isOpen == false)
+        #expect(stillThere?.title == "Closed" && stillThere?.floatOnTop == true)
+
+        try await db.updateNoteOpen(id: closed.id, isOpen: true)
+        #expect(try await db.openNotes().map(\.id) == [kept.id, closed.id])
+    }
+
     @Test("insertNewNote assigns an increasing sortIndex")
     func sortIndexIncrements() async throws {
         let db = try makeDB()

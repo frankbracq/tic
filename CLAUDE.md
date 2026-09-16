@@ -65,8 +65,10 @@ panels**, and a few responsibilities are deliberately split across the AppKit/Sw
   content fills everything). `isMovableByWindowBackground` is **off** on purpose.
 - **`NoteWindowManager`** (`@MainActor`) — owns `[UUID: NotePanel]` + `[UUID: NoteController]`, is
   each panel's `NSWindowDelegate`, and is the single chokepoint for all window mutation:
-  `restoreAll` (launch), `openNote`, close, debounced frame persistence, roll-up resize, and
-  applying float-on-top / show-on-all-Spaces.
+  `restoreAll` (launch: only notes with `isOpen` — the header X clears it, quitting doesn't, so
+  relaunch shows what was on screen), `openNote`, close, debounced frame persistence, roll-up
+  resize, and applying float-on-top / show-on-all-Spaces. Frames are global coordinates spanning
+  all displays; `ensureOnScreen` recentres only when *no* screen contains the note.
 - **`NoteController`** (`@MainActor @Observable`) — one per open note. Holds the `Note`, streams
   its tasks live via GRDB `ValueObservation`, and turns user actions into DB writes. It stays
   **AppKit-free**: window side effects go through closures the manager sets on it

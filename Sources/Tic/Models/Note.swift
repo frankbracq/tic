@@ -22,6 +22,9 @@ struct Note: Identifiable, Equatable, Codable, Sendable {
     var floatOnTop: Bool
     var showOnAllSpaces: Bool
     var isCollapsed: Bool
+    /// Whether the note's panel was on screen when last seen — closing via the header X clears it,
+    /// opening sets it — so launch restores only what was visible.
+    var isOpen: Bool
     var sortIndex: Int
 
     // Per-note checklist display options (applied by `NoteController.displayedTasks`, not stored on
@@ -43,6 +46,7 @@ struct Note: Identifiable, Equatable, Codable, Sendable {
         floatOnTop: Bool = false,
         showOnAllSpaces: Bool = false,
         isCollapsed: Bool = false,
+        isOpen: Bool = true,
         sortIndex: Int = 0,
         hideCompleted: Bool = false,
         moveCompletedToBottom: Bool = false
@@ -60,6 +64,7 @@ struct Note: Identifiable, Equatable, Codable, Sendable {
         self.floatOnTop = floatOnTop
         self.showOnAllSpaces = showOnAllSpaces
         self.isCollapsed = isCollapsed
+        self.isOpen = isOpen
         self.sortIndex = sortIndex
         self.hideCompleted = hideCompleted
         self.moveCompletedToBottom = moveCompletedToBottom
@@ -74,6 +79,7 @@ extension Note: FetchableRecord, PersistableRecord {
         static let title = Column("title")
         static let updatedAt = Column("updatedAt")
         static let sortIndex = Column("sortIndex")
+        static let isOpen = Column("isOpen")
     }
 }
 // GRDB's default date storage is readable, sortable UTC text ("yyyy-MM-dd HH:mm:ss.SSS"),

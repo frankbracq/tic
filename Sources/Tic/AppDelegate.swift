@@ -29,6 +29,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// Click the Dock icon with no notes on screen → open the Lists palette, so the app never
+    /// looks dead after every note was closed.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
+        if AppModel.shared.windows.openCount == 0 { AppModel.shared.openSearch() }
+        return true
+    }
+
     /// Right-click the Dock icon → New List.
     func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
         let menu = NSMenu()
