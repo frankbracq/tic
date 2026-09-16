@@ -14,6 +14,7 @@ final class AppModel {
 
     let database: AppDatabase
     let windows: NoteWindowManager
+    let updates = UpdateChecker()
 
     /// All saved notes (ascending `sortIndex`, i.e. creation order) — drives the menu bar list.
     /// Stays in sync as notes are created, renamed, or deleted.
@@ -38,6 +39,7 @@ final class AppModel {
         await windows.restoreAll()
         startObservingNotes()
         applyLaunchAtLogin(launchAtLogin)   // honor the saved preference (effective when packaged)
+        updates.start()
     }
 
     private func startObservingNotes() {

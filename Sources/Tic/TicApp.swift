@@ -17,23 +17,44 @@ struct TicApp: App {
 }
 
 /// The status-bar icon: a template-rendered menu-bar glyph (bundled via SPM resources), falling
-/// back to an SF Symbol if the resource can't be found.
+/// back to an SF Symbol if the resource can't be found. A small dot marks an update the user
+/// hasn't looked at yet (`UpdateChecker.isUnseen`). The dot is drawn *into* the image: the status
+/// item renders only the label's image, so a SwiftUI overlay never shows.
 private struct MenuBarLabel: View {
+    private var updates: UpdateChecker { AppModel.shared.updates }
+
     var body: some View {
-        if let icon = Self.icon {
+        if let icon = updates.isUnseen ? Self.badgedIcon : Self.icon {
             Image(nsImage: icon).renderingMode(.template)
         } else {
-            Image(systemName: "checklist")
+            Image(systemName: updates.isUnseen ? "checklist.checked" : "checklist")
         }
     }
 
-    private static let icon: NSImage? = {
-        guard let url = menuBarIconURL(),
-              let image = NSImage(contentsOf: url) else { return nil }
-        image.isTemplate = true
-        image.size = NSSize(width: 18, height: 18)
-        return image
+    private static let glyph: NSImage? = {
+        guard let url = menuBarIconURL() else { return nil }
+        return NSImage(contentsOf: url)
     }()
+    private static let icon = glyph.map { compose($0, dot: false) }
+    private static let badgedIcon = glyph.map { compose($0, dot: true) }
+
+    /// 20×18 template image: the 18pt glyph plus (optionally) a 6pt dot at the top-right, with a
+    /// knocked-out ring so it reads as a badge. Both variants share a size so nothing shifts.
+    private static func compose(_ glyph: NSImage, dot: Bool) -> NSImage {
+        let image = NSImage(size: NSSize(width: 20, height: 18), flipped: false) { _ in
+            glyph.draw(in: NSRect(x: 0, y: 0, width: 18, height: 18))
+            if dot {
+                let dot = NSRect(x: 14, y: 11, width: 6, height: 6)
+                NSGraphicsContext.current?.compositingOperation = .destinationOut
+                NSBezierPath(ovalIn: dot.insetBy(dx: -1.5, dy: -1.5)).fill()
+                NSGraphicsContext.current?.compositingOperation = .sourceOver
+                NSBezierPath(ovalIn: dot).fill()
+            }
+            return true
+        }
+        image.isTemplate = true
+        return image
+    }
 
     private static func menuBarIconURL() -> URL? {
         let fileManager = FileManager.default
@@ -99,6 +120,11 @@ private struct MenuBarContent: View {
             get: { model.launchAtLogin },
             set: { model.setLaunchAtLogin($0) }
         ))
+
+        if let title = model.updates.menuTitle {
+            Divider()
+            Button(title) { model.updates.openReleasePage() }
+        }
 
         Divider()
 

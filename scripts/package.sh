@@ -43,6 +43,9 @@ if [ ! -f "$APP/Contents/Resources/Tic_Tic.bundle/MenuBarIcon.png" ]; then
     exit 1
 fi
 
+# The release workflow passes the tag; local builds default to the latest tag so a dev build
+# doesn't look outdated to the update checker.
+VERSION="${VERSION:-$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//')}"
 if [ -n "${VERSION:-}" ]; then
     echo "▸ Stamping version ${VERSION}…"
     /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${VERSION}" "$APP/Contents/Info.plist"

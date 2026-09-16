@@ -1,4 +1,5 @@
 import AppKit
+import UserNotifications
 
 /// App lifecycle owner. As a plain SwiftPM executable (no .app bundle yet) we must explicitly
 /// adopt a regular activation policy so Tic gets a Dock icon and can take foreground focus.
@@ -11,6 +12,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.regular)
         Task { await AppModel.shared.bootstrap() }
         installNewNoteShortcut()
+        // Update banners (UpdateChecker). `current()` throws without a bundle id (swift run).
+        if Bundle.main.bundleIdentifier != nil {
+            UNUserNotificationCenter.current().delegate = self
+        }
     }
 
     /// ⌘N → New Note while Tic is the active app. A menu-style `MenuBarExtra` button's
@@ -47,5 +52,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func newListFromDock() {
         AppModel.shared.newNote()
+    }
+}
+
+/// Update-banner delegate: show it even while Tic is frontmost (macOS hides a frontmost app's
+/// notifications by default), and a click opens the release page.
+extension AppDelegate: UNUserNotificationCenterDelegate {
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter, willPresent notification: UNNotification
+    ) async -> UNNotificationPresentationOptions {
+        [.banner, .list]
+    }
+
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse
+    ) async {
+        await MainActor.run { AppModel.shared.updates.openReleasePage() }
     }
 }

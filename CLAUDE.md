@@ -166,6 +166,25 @@ panels**, and a few responsibilities are deliberately split across the AppKit/Sw
   (title/task/secondary/completed/checkbox) for a `Surface` (`.solid` uses per-theme tuned inks;
   `.glass` uses adaptive `.primary`/`.secondary`). Views read a resolved `NoteTheme`, never branch
   on material themselves.
+- **Updates are check-only (`UpdateChecker`), never auto-install.** Tic is ad-hoc signed, so a
+  self-replacing updater (Sparkle) can't be trusted. Daily GET of the GitHub `releases/latest` API,
+  compared numerically against `CFBundleShortVersionString` (nil under `swift run` → checker off).
+  A newer tag shows a menu-bar item, a dot on the menu-bar icon until the menu is opened or the
+  item clicked (`isUnseen`, remembered in the `updateSeenVersion` default; "opened" is detected via
+  `NSMenu.didEndTrackingNotification` on a menu containing our item; the dot is **drawn into a
+  second template `NSImage`** because the status item renders only the label's image, never a
+  SwiftUI overlay), and **one** notification
+  banner per version (`updateNotifiedVersion`; authorization is requested only then, so the system
+  prompt appears in context). `UNUserNotificationCenter` needs a bundle id, so both the delegate
+  and the banner are guarded. `package.sh` defaults `VERSION` to the latest git tag so a local build
+  isn't "outdated".
+  - **Seeing it locally:** `VERSION=0.1.0 ./scripts/package.sh --open` shows the menu item and the
+    dot. The banner is stricter: macOS refuses notification authorization (`UNErrorDomain` code 1,
+    "Notifications are not allowed for this application") for an ad-hoc bundle **outside
+    /Applications**, and the refusal seemed to stick to the bundle id afterwards. So to test the
+    banner, copy the build to `/Applications/Tic Dev.app`, give it a unique `CFBundleIdentifier`
+    (PlistBuddy), re-sign ad-hoc, then `open` it. Re-arm with
+    `defaults delete <bundle id> updateNotifiedVersion updateSeenVersion`, and delete the copy after.
 - **Models are sync-friendly.** `Note`/`TaskItem` use `UUID` PKs + `updatedAt`; relationships and
   defaults are chosen so CloudKit/iCloud sync stays feasible later (currently local-only).
 
