@@ -6,6 +6,10 @@ import GRDB
 extension AppDatabase {
     // MARK: - Tasks
 
+    func task(id: UUID) async throws -> TaskItem? {
+        try await dbQueue.read { db in try TaskItem.filter(TaskItem.Columns.id == id).fetchOne(db) }
+    }
+
     func tasks(noteId: UUID) async throws -> [TaskItem] {
         try await dbQueue.read { db in
             try TaskItem

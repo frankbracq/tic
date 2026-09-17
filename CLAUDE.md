@@ -94,7 +94,18 @@ panels**, and a few responsibilities are deliberately split across the AppKit/Sw
   image window a double-click opens (AppKit `ZoomScrollView` zoom + Open in Preview), dressed like its
   note (paper/glass background, note-style header, hints) — one reusable `ImageWindow` owned by
   `NoteWindowManager`; far quicker than launching Preview.
-- **App shell** — `TicApp` (`@main`) provides a `MenuBarExtra`; `AppDelegate`
+- **MCP server (`MCP/`)** — lets AI agents drive Tic. `MCPService` runs an `NWListener` on a Unix
+  socket beside the DB (`~/Library/Application Support/Tic/mcp.sock`, 0600) — one official-SDK
+  `Server` session per connection (per agent). `MCPTools` is the tool surface (`create_note`,
+  `add_tasks`, `update_task`, `move_task`, …): pure `AppDatabase` writes plus three window pokes
+  (`WindowActions`), reusing `TaskOutline` for every structural rule so tools and UI can't diverge.
+  Clients speak **stdio** to `Tic --mcp` (`MCPProxy`), which pipes to the socket — one config works
+  for every client, and the server lives in the app next to the observers. Off by default
+  (`AppModel.mcpEnabled`). **Live updates are free:** tools write the DB, the existing
+  `ValueObservation` streams push into open panels; the one addition is `observeNote(id:)` so the
+  controller streams its own note row too (an agent's title/colour/flag write shows live).
+- **App shell** — `TicApp` provides a `MenuBarExtra`; `main.swift` (not `@main`) routes `--mcp` to
+  the proxy, else `TicApp.main()`; `AppDelegate`
   (`NSApplicationDelegateAdaptor`) builds the shared `AppDatabase` + `NoteWindowManager` and calls
   `restoreAll()` on launch. The app is a **hybrid**: Dock icon **and** menu bar item.
 

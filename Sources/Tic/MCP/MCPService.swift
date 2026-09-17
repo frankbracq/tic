@@ -16,12 +16,28 @@ final class MCPService: @unchecked Sendable {
 
     let socketPath: String
     private let database: AppDatabase
+    /// Window pokes (open/close/move a note's panel), supplied by `AppModel` so this stays AppKit-free.
+    var windowActions = MCPTools.WindowActions()
     /// Listener callbacks land here; `listener` and `sessions` are touched only on it.
     private let queue = DispatchQueue(label: "tic.mcp")
     private var listener: NWListener?
     private var sessions: [ObjectIdentifier: Server] = [:]
     /// Agents connected right now (the setup window's status line). Called off the main actor.
     var onConnectionCountChange: (@Sendable (Int) -> Void)?
+
+    /// Sent to the client on `initialize` so an agent uses the tools well.
+    static let instructions = """
+        Tic is a desktop of floating sticky notes; each note is a checklist. Use these tools to \
+        draft, tick, and organise the user's task lists — the app updates live as you work.
+
+        Tasks are a flat, ordered list with an indent level 0-2 (max 3 levels deep). A task's \
+        parent is implicit: the nearest earlier task at a shallower level. Build sub-items by \
+        giving deeper levels; levels are auto-corrected to a valid outline.
+
+        Completion cascades: ticking a parent ticks its whole subtree, and finishing the last \
+        child auto-ticks the parent. Change done state only via update_task; moving or deleting \
+        never changes ticks. Ids are UUID strings from list_notes / get_note.
+        """
 
     init(database: AppDatabase, socketPath: String = MCPService.socketPath) {
         self.database = database
@@ -90,14 +106,19 @@ final class MCPService: @unchecked Sendable {
         let server = Server(
             name: "Tic",
             version: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev",
+            instructions: Self.instructions,
             capabilities: .init(tools: .init())
         )
         let key = ObjectIdentifier(server)
         sessions[key] = server
         onConnectionCountChange?(sessions.count)
 
+        let tools = MCPTools(database: database, window: windowActions)
         Task { [weak self] in
-            await server.withMethodHandler(ListTools.self) { _ in .init(tools: []) }
+            await server.withMethodHandler(ListTools.self) { _ in ListTools.Result(tools: tools.definitions()) }
+            await server.withMethodHandler(CallTool.self) { params in
+                await tools.call(params.name, params.arguments)
+            }
             do {
                 try await server.start(transport: transport)
             } catch {

@@ -174,6 +174,15 @@ enum TaskOutline {
     /// The `indentLevel` changes needed to turn `old` into `new`, matched **by id** (not position).
     /// Matching by id is what lets a reorder that also re-nests persist correctly: the new list is in
     /// a different order than the old one, so a positional diff would miss the level change.
+    /// The `isDone`/`completedAt` deltas between two same-ordered task lists — the rows a
+    /// completion write must touch. Shared by the controller (a checkbox) and the MCP tools.
+    static func completionChanges(from before: [TaskItem], to after: [TaskItem]) -> [TaskCompletionUpdate] {
+        zip(before, after).compactMap { b, a in
+            guard b.isDone != a.isDone || b.completedAt != a.completedAt else { return nil }
+            return TaskCompletionUpdate(id: a.id, isDone: a.isDone, completedAt: a.completedAt)
+        }
+    }
+
     static func indentLevelChanges(from old: [TaskItem], to new: [TaskItem]) -> [(id: UUID, level: Int)] {
         let oldLevel = Dictionary(uniqueKeysWithValues: old.map { ($0.id, $0.indentLevel) })
         return new.compactMap { task in

@@ -238,6 +238,37 @@ final class NoteWindowManager: NSObject, NSWindowDelegate {
 
     var openCount: Int { panels.count }
 
+    // MARK: - Actions for external writers (MCP)
+
+    /// Brings a note's panel to the front, opening it from the DB if it wasn't on screen. Used when
+    /// an agent creates a note or writes to a closed one — so the user sees the work. Doesn't
+    /// activate the app (never yanks the user out of what they're doing).
+    func openNoteByID(_ id: UUID) async {
+        if let panel = panels[id] { panel.orderFront(nil); return }
+        guard let note = try? await appDatabase.note(id: id) else { return }
+        openNote(note, makeKey: false)
+    }
+
+    /// Hides a note's panel (the agent equivalent of the header X): marks it closed and closes the
+    /// window if it's open. A no-op beyond the DB write when nothing is on screen.
+    func closeNoteByID(_ id: UUID) async {
+        try? await appDatabase.updateNoteOpen(id: id, isOpen: false)
+        panels[id]?.close()   // → windowWillClose tears down the controller/panel
+    }
+
+    /// Moves/resizes a note. If its panel is live, set the frame (the debounced save persists it,
+    /// exactly like a user drag); otherwise persist the frame so `place` uses it when next opened.
+    func setFrame(_ id: UUID, to rect: CGRect) async {
+        if let panel = panels[id] {
+            panel.setFrame(rect, display: true, animate: false)   // fires didMove/didResize → save
+        } else {
+            savedFrames[id] = rect
+            try? await appDatabase.updateNoteFrame(
+                id: id, x: rect.origin.x, y: rect.origin.y, width: rect.width, height: rect.height
+            )
+        }
+    }
+
     // MARK: - NSWindowDelegate
 
     func windowDidMove(_ notification: Notification) { scheduleFrameSave(notification) }

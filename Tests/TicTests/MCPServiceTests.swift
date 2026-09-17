@@ -26,7 +26,8 @@ struct MCPServiceTests {
         #expect(service.connectionCount == 1)
 
         let listed = try await client.listTools()
-        #expect(listed.tools.isEmpty)
+        #expect(listed.tools.contains { $0.name == "create_note" })
+        #expect(listed.tools.contains { $0.name == "get_note" })
 
         await client.disconnect()
         for _ in 0..<40 where service.connectionCount != 0 {   // EOF reaches the server asynchronously

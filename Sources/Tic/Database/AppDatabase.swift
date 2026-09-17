@@ -241,6 +241,22 @@ final class AppDatabase: Sendable {
         }
     }
 
+    /// A single note fetched by id (nil if it was deleted). Used to open a note an agent created
+    /// or wrote to while its panel was closed.
+    func note(id: UUID) async throws -> Note? {
+        try await dbQueue.read { db in
+            try Note.filter(Note.Columns.id == id).fetchOne(db)
+        }
+    }
+
+    /// Emits one note whenever it changes (nil once deleted) — the per-row twin of `observeNotes`,
+    /// so an open panel reflects an agent's title/colour/flag writes live.
+    func observeNote(id: UUID) -> AsyncValueObservation<Note?> {
+        ValueObservation
+            .tracking { db in try Note.filter(Note.Columns.id == id).fetchOne(db) }
+            .values(in: dbQueue)
+    }
+
     /// Emits the full ordered list of notes whenever any note changes.
     func observeNotes() -> AsyncValueObservation<[Note]> {
         ValueObservation

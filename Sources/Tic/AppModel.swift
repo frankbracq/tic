@@ -37,6 +37,12 @@ final class AppModel {
         mcp.onConnectionCountChange = { [weak self] count in
             Task { @MainActor in self?.mcpConnections = count }
         }
+        // Window pokes the MCP tools need, hopped to the main actor (the service runs off it).
+        mcp.windowActions = MCPTools.WindowActions(
+            open: { [weak self] id in await self?.windows.openNoteByID(id) },
+            close: { [weak self] id in await self?.windows.closeNoteByID(id) },
+            setFrame: { [weak self] id, rect in await self?.windows.setFrame(id, to: rect) }
+        )
     }
 
     /// Run once after launch: open saved note panels, then start streaming the notes list.
