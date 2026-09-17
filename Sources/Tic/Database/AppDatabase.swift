@@ -14,8 +14,8 @@ final class AppDatabase: Sendable {
 
     // MARK: - Setup
 
-    /// The shared on-disk database at `~/Library/Application Support/Tic/tic.sqlite`.
-    static func makeShared() throws -> AppDatabase {
+    /// `~/Library/Application Support/Tic/` — home of the database and the MCP socket.
+    static func supportDirectory() throws -> URL {
         let fm = FileManager.default
         let appSupport = try fm.url(
             for: .applicationSupportDirectory, in: .userDomainMask,
@@ -23,7 +23,12 @@ final class AppDatabase: Sendable {
         )
         let dir = appSupport.appendingPathComponent("Tic", isDirectory: true)
         try fm.createDirectory(at: dir, withIntermediateDirectories: true)
-        let dbURL = dir.appendingPathComponent("tic.sqlite")
+        return dir
+    }
+
+    /// The shared on-disk database at `~/Library/Application Support/Tic/tic.sqlite`.
+    static func makeShared() throws -> AppDatabase {
+        let dbURL = try supportDirectory().appendingPathComponent("tic.sqlite")
 
         let db = try AppDatabase(try DatabaseQueue(path: dbURL.path))
         try db.seedSampleDataIfEmpty()

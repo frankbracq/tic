@@ -15,6 +15,7 @@ final class AppModel {
     let database: AppDatabase
     let windows: NoteWindowManager
     let updates = UpdateChecker()
+    @ObservationIgnored private let mcp: MCPService
 
     /// All saved notes (ascending `sortIndex`, i.e. creation order) — drives the menu bar list.
     /// Stays in sync as notes are created, renamed, or deleted.
@@ -31,7 +32,11 @@ final class AppModel {
         }
         self.database = db
         self.windows = NoteWindowManager(appDatabase: db)
+        self.mcp = MCPService(database: db)
         NSLog("[Tic] Database ready at \(db.path)")
+        mcp.onConnectionCountChange = { [weak self] count in
+            Task { @MainActor in self?.mcpConnections = count }
+        }
     }
 
     /// Run once after launch: open saved note panels, then start streaming the notes list.
@@ -39,6 +44,7 @@ final class AppModel {
         await windows.restoreAll()
         startObservingNotes()
         applyLaunchAtLogin(launchAtLogin)   // honor the saved preference (effective when packaged)
+        if mcpEnabled { applyMCPEnabled(true) }
         updates.start()
     }
 
@@ -117,6 +123,36 @@ final class AppModel {
     /// Closes the Lists palette (Escape / pick a list / its close button).
     func dismissSearch() {
         searchWindow?.orderOut(nil)
+    }
+
+    // MARK: - MCP (AI agents)
+
+    private static let mcpEnabledKey = "mcpEnabled"
+
+    /// Whether AI agents may drive Tic over MCP. Off by default and remembered; the socket exists
+    /// only while this is on, so a client spawning `Tic --mcp` meanwhile fails fast with a hint.
+    private(set) var mcpEnabled: Bool = UserDefaults.standard.bool(forKey: AppModel.mcpEnabledKey)
+
+    /// Agents connected right now (the MCP window's status line).
+    private(set) var mcpConnections = 0
+
+    var mcpSocketPath: String { mcp.socketPath }
+
+    func setMCPEnabled(_ enabled: Bool) {
+        mcpEnabled = enabled
+        UserDefaults.standard.set(enabled, forKey: Self.mcpEnabledKey)
+        applyMCPEnabled(enabled)
+    }
+
+    private func applyMCPEnabled(_ enabled: Bool) {
+        guard enabled else { return mcp.stop() }
+        do {
+            try mcp.start()
+            NSLog("[Tic] MCP listening at \(mcp.socketPath)")
+        } catch {
+            NSLog("[Tic] MCP failed to start: \(error)")
+            mcpEnabled = false
+        }
     }
 
     // MARK: - Launch at login
