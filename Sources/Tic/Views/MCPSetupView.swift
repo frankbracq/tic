@@ -38,6 +38,7 @@ struct MCPSetupView: View {
         }
         .frame(width: 680, height: 460)
         .background(.regularMaterial)
+        .ignoresSafeArea()               // else the hidden title bar leaves a blank strip on top
         .onExitCommand { model.dismissMCPSetup() }
     }
 
