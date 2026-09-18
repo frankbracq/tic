@@ -3,7 +3,7 @@ import Site from '../layouts/Site.astro';
 import Note, { type Task } from './Note.astro';
 import Palette from './Palette.astro';
 import Icon from './Icon.astro';
-import { site, release, features, shortcuts, faqs, welcomeTasks, weekTasks, groceryTasks } from '../data/site';
+import { site, release, features, shortcuts, faqs, welcomeTasks, weekTasks, groceryTasks, agentTasks, agentCalls, mcpClients } from '../data/site';
 import { competitors, comparePath } from '../data/compare';
 
 const id = (name: string) => `${site.url}/#${name}`;
@@ -214,6 +214,61 @@ Groceries</code></pre>
       </div>
     </section>
 
+    <section id="agents" data-agent class="mx-auto max-w-6xl scroll-mt-8 px-5 py-12 sm:py-20">
+      <div class="max-w-3xl">
+        <p class="anim inline-flex items-center gap-2 rounded-full bg-accent/10 px-3 py-1 text-sm font-semibold text-accent ring-1 ring-accent/20" style="--i:0">
+          <Icon name="sparkle" class="size-4" />New — works with AI agents
+        </p>
+        <h2 class:list={[h2, 'anim mt-5 max-w-3xl']} style="--i:1">Let your AI agent draft the list</h2>
+        <p class="anim mt-5 text-lg leading-relaxed text-muted text-pretty" style="--i:2">
+          Tic speaks <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener" class="text-fg underline underline-offset-4">MCP</a>,
+          so Claude, Cursor and friends can turn a plan into a checklist right on your desktop.
+          Ask, and tasks appear, nest and tick themselves off — live, in the note. No copy-paste.
+        </p>
+      </div>
+
+      <div class="mt-10 grid items-center gap-6 sm:mt-14 lg:grid-cols-[1fr_1.05fr] lg:gap-12">
+        <!-- Agent transcript: the tool calls, appearing one by one -->
+        <figure class="anim overflow-hidden rounded-2xl bg-[#1e2027] text-left shadow-2xl ring-1 ring-black/20" style="--i:2">
+          <div class="flex items-center gap-2 border-b border-white/10 px-4 py-3" aria-hidden="true">
+            <span class="grid size-6 place-items-center rounded-md bg-accent/20 text-accent"><Icon name="robot" class="size-4" /></span>
+            <span class="text-sm font-medium text-white/80">Your AI agent</span>
+            <span class="ml-auto flex items-center gap-1.5 text-xs text-white/40"><span class="size-2 rounded-full bg-[#28c840]" />connected to Tic</span>
+          </div>
+          <ol class="flex flex-col gap-2.5 p-4 font-mono text-[12px] leading-relaxed sm:p-5 sm:text-[13px]">
+            {agentCalls.map((call, i) => (
+              <li class="call flex flex-wrap items-baseline gap-x-2 gap-y-1" style={`--i:${3 + i}`}>
+                <span class="text-white/30" aria-hidden="true">▸</span>
+                <span class="rounded-md bg-accent/15 px-1.5 py-0.5 font-semibold text-accent">{call.tool}</span>
+                <span class="text-white/75">{call.args}</span>
+                {call.note && <span class="text-white/35">— {call.note}</span>}
+              </li>
+            ))}
+          </ol>
+        </figure>
+
+        <!-- The note it's writing into, filling in live -->
+        <div class="anim flex justify-center" style="--i:3">
+          <Note id="agent-note" title="Kyoto trip 🗾" color="green" tasks={agentTasks} interactive quick="Ask your agent…" width="20em" style="font-size:14px" />
+        </div>
+      </div>
+
+      <!-- Works-with strip -->
+      <div class="anim mt-10 sm:mt-14" style="--i:8">
+        <p class="text-sm font-medium text-muted">Set it up once for the client you use</p>
+        <ul class="mt-4 flex flex-wrap gap-2.5">
+          {mcpClients.map((c) => (
+            <li class="inline-flex items-center gap-2 rounded-full bg-surface px-3.5 py-1.5 text-sm font-medium ring-1 ring-line">
+              <Icon name={c.icon} class="size-4 text-muted" />{c.name}
+            </li>
+          ))}
+        </ul>
+        <p class="mt-5 max-w-2xl text-sm text-muted">
+          Open <span class="font-medium text-fg">AI Agents (MCP)…</span> from the menu bar, flip it on, and copy the setup for your client — or add Cursor and VS Code in one click. It is off by default and runs entirely on your Mac.
+        </p>
+      </div>
+    </section>
+
     <section id="shortcuts" class="scroll-mt-8 border-y border-line bg-surface/60 py-12 sm:py-20">
       <div class="mx-auto grid max-w-6xl gap-8 px-5 lg:grid-cols-[1fr_1.3fr] lg:gap-12">
         <div>
@@ -319,4 +374,35 @@ Groceries</code></pre>
       });
     }
   });
+
+  // AI-agents section: play the fill-in once when it scrolls into view. The note's first three rows
+  // start un-ticked, then re-tick in sequence to show the completion cascade the agent triggers.
+  const agents = document.getElementById('agents');
+  const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (agents && !calm) {
+    const cascade = [...agents.querySelectorAll('#agent-note .task')].slice(0, 3);
+    const setDone = (task: Element, done: boolean) => {
+      task.toggleAttribute('data-done', done);
+      task.querySelector('.cb')?.setAttribute('aria-pressed', String(done));
+    };
+    cascade.forEach((task) => setDone(task, false)); // reset before the reveal
+    let played = false;
+    const play = () => {
+      if (played) return;
+      played = true;
+      agents.setAttribute('data-play', '');
+      // After the rows have risen in (~2s of staggered entrance), tick Flights and its subtree.
+      cascade.forEach((task, i) => setTimeout(() => setDone(task, true), 2200 + i * 300));
+    };
+    if ('IntersectionObserver' in window) {
+      const observer = new IntersectionObserver((entries) => {
+        if (entries.some((e) => e.isIntersecting)) { observer.disconnect(); play(); }
+      }, { threshold: 0.2, rootMargin: '0px 0px -8% 0px' });
+      observer.observe(agents);
+      // Failsafe: if the observer somehow never fires, reveal anyway so the section is never left blank.
+      setTimeout(play, 4000);
+    } else {
+      play(); // no IntersectionObserver: just show it
+    }
+  }
 </script>

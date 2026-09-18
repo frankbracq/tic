@@ -33,7 +33,7 @@ export const site = {
     'Tic is a free, open-source Mac app that keeps your to-do lists on the desktop as floating sticky notes, with subtasks, Markdown and keyboard shortcuts.',
   summary:
     'Tic is a free, open-source macOS app that keeps to-do lists on the desktop as floating, Stickies-style sticky notes instead of hiding them behind a menu bar. Each list is its own small window with subtasks, inline Markdown, pasted images, solid or glass styles and keyboard shortcuts. It needs macOS 14 Sonoma or later.',
-  keywords: ['to-do list', 'sticky notes', 'Stickies alternative', 'desktop checklist', 'task manager', 'macOS', 'open source'],
+  keywords: ['to-do list', 'sticky notes', 'Stickies alternative', 'desktop checklist', 'task manager', 'macOS', 'open source', 'MCP', 'AI agent'],
   repo: 'https://github.com/kasvith/tic',
   download: 'https://github.com/kasvith/tic/releases/latest',
   changelog: 'https://github.com/kasvith/tic/blob/main/CHANGELOG.md',
@@ -73,6 +73,37 @@ export const weekTasks: Task[] = [
   { t: 'Dentist, <strong>Thu 3pm</strong>' },
   { t: 'Call mum', done: true },
   { t: 'Book flights to Rome' },
+];
+
+// The MCP section: an agent building a trip list live. Seeded done so no-JS/reduced-motion shows the
+// finished cascade; the script un-ticks then re-ticks to animate it.
+export const agentTasks: Task[] = [
+  { t: 'Flights', done: true },
+  { t: 'Book outbound', l: 1, done: true },
+  { t: 'Book return', l: 1, done: true },
+  { t: 'Lodging' },
+  { t: 'Ryokan, 2 nights', l: 1 },
+  { t: 'Food &amp; coffee spots' },
+];
+
+// The agent's tool calls, shown as a transcript beside the filling note.
+export const agentCalls: { tool: string; args: string; note?: string }[] = [
+  { tool: 'create_note', args: '“Kyoto trip” · green' },
+  { tool: 'add_tasks', args: 'Flights · Lodging · Food' },
+  { tool: 'add_tasks', args: 'Book outbound · Book return', note: 'under Flights' },
+  { tool: 'update_task', args: 'Flights → done', note: 'subtree ticks too' },
+];
+
+// Popular MCP clients that can drive Tic. Icons are Phosphor (generic, not brand logos).
+export const mcpClients: { name: string; icon: string }[] = [
+  { name: 'Claude', icon: 'sparkle' },
+  { name: 'Claude Code', icon: 'terminal-window' },
+  { name: 'Cursor', icon: 'cursor' },
+  { name: 'VS Code', icon: 'code' },
+  { name: 'Zed', icon: 'lightning' },
+  { name: 'Codex CLI', icon: 'terminal-window' },
+  { name: 'Gemini CLI', icon: 'sparkle' },
+  { name: 'Windsurf', icon: 'wind' },
 ];
 
 export const features = [
@@ -143,6 +174,10 @@ export const faqs = [
   {
     q: 'Where are my lists stored?',
     a: 'In a local SQLite database at ~/Library/Application Support/Tic/tic.sqlite. Nothing leaves your Mac.',
+  },
+  {
+    q: 'Can AI agents add tasks to Tic?',
+    a: 'Yes. Turn on the MCP server from the menu bar (AI Agents (MCP)…) and agents like Claude, Cursor, VS Code, Zed and the Codex or Gemini CLIs can create notes, draft tasks, tick them off and more. The window gives you a one-click or copy-paste setup for each. It is off by default and runs entirely on your Mac.',
   },
   {
     q: 'Does Tic sync between Macs?',
