@@ -37,6 +37,9 @@ final class MCPService: @unchecked Sendable {
         Completion cascades: ticking a parent ticks its whole subtree, and finishing the last \
         child auto-ticks the parent. Change done state only via update_task; moving or deleting \
         never changes ticks. Ids are UUID strings from list_notes / get_note.
+
+        Writing to a note surfaces it above other apps without stealing the user's keyboard focus.
+        Use focus_note (or focus:true) only when you want to pull the user's attention to a note.
         """
 
     init(database: AppDatabase, socketPath: String = MCPService.socketPath) {

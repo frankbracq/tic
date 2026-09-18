@@ -16,6 +16,7 @@ struct MCPToolsTests {
         var opened: [UUID] = []
         var closed: [UUID] = []
         var framed: [(UUID, CGRect)] = []
+        var focused: [UUID] = []
 
         init() throws {
             let db = try AppDatabase.makeInMemory()
@@ -24,7 +25,8 @@ struct MCPToolsTests {
             self.tools = MCPTools(database: db, window: .init(
                 open: { id in await box.record { $0.opened.append(id) } },
                 close: { id in await box.record { $0.closed.append(id) } },
-                setFrame: { id, r in await box.record { $0.framed.append((id, r)) } }
+                setFrame: { id, r in await box.record { $0.framed.append((id, r)) } },
+                focus: { id in await box.record { $0.focused.append(id) } }
             ))
             box.harness = self
         }
@@ -202,5 +204,26 @@ struct MCPToolsTests {
         #expect(after.objectValue?["tasks"]?.arrayValue?[0].objectValue?["has_image"]?.boolValue == false)
     }
 
+    @Test("focus_note and focus:true bring the note to the foreground; a plain write only surfaces it")
+    @MainActor func focusing() async throws {
+        let h = try Harness()
+        // create_note without focus → surfaced (open), not focused.
+        let (created, _) = await call(h.tools, "create_note", ["title": "Watch me"])
+        let id = try #require(created.objectValue?["id"]?.stringValue)
+        #expect(h.opened.map(\.uuidString) == [id])
+        #expect(h.focused.isEmpty)
 
+        // focus_note → focus action.
+        let (res, err) = await call(h.tools, "focus_note", ["note_id": .string(id)])
+        #expect(!err)
+        #expect(res.objectValue?["focused"]?.stringValue == id)
+        #expect(h.focused.map(\.uuidString) == [id])
+
+        // update_note focus:true → focus, not a plain open.
+        h.opened.removeAll(); h.focused.removeAll()
+        let (_, err2) = await call(h.tools, "update_note", ["note_id": .string(id), "focus": true])
+        #expect(!err2)
+        #expect(h.focused.map(\.uuidString) == [id])
+        #expect(h.opened.isEmpty)
+    }
 }

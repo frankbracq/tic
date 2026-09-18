@@ -240,13 +240,35 @@ final class NoteWindowManager: NSObject, NSWindowDelegate {
 
     // MARK: - Actions for external writers (MCP)
 
-    /// Brings a note's panel to the front, opening it from the DB if it wasn't on screen. Used when
-    /// an agent creates a note or writes to a closed one — so the user sees the work. Doesn't
-    /// activate the app (never yanks the user out of what they're doing).
+    /// Surfaces a note's panel, opening it from the DB if it wasn't on screen. Used when an agent
+    /// creates a note or writes to a closed one — so the user sees the work. Uses
+    /// `orderFrontRegardless` so a `.normal`-level note appears above other apps even while Tic is in
+    /// the background, but does **not** activate Tic — the user's keyboard focus stays where it was.
     func openNoteByID(_ id: UUID) async {
-        if let panel = panels[id] { panel.orderFront(nil); return }
+        if let panel = panels[id] { panel.orderFrontRegardless(); return }
         guard let note = try? await appDatabase.note(id: id) else { return }
-        openNote(note, makeKey: false)
+        let panel = openNote(note, makeKey: false)
+        panel.orderFrontRegardless()
+    }
+
+    /// Brings a note fully to the foreground: activates Tic and makes the note key, so it lands in
+    /// front and ready to type in. The explicit "jump to this note" (the `focus_note` MCP tool),
+    /// stronger than `openNoteByID` — this one does take focus.
+    func focusNoteByID(_ id: UUID) async {
+        let panel: NotePanel
+        if let existing = panels[id] {
+            panel = existing
+        } else if let note = try? await appDatabase.note(id: id) {
+            panel = openNote(note, makeKey: false)
+        } else {
+            return
+        }
+        // A background app's plain activate() is refused by macOS focus-stealing prevention, so use
+        // the assertive form (deprecated on 14 but still the only thing that reliably pulls focus
+        // forward from another app). This is opt-in (focus_note / focus:true), never a plain write.
+        NSApp.activate(ignoringOtherApps: true)
+        panel.makeKeyAndOrderFront(nil)
+        panel.orderFrontRegardless()
     }
 
     /// Hides a note's panel (the agent equivalent of the header X): marks it closed and closes the

@@ -16,6 +16,7 @@ struct MCPTools: Sendable {
         var open: @Sendable (UUID) async -> Void = { _ in }
         var close: @Sendable (UUID) async -> Void = { _ in }
         var setFrame: @Sendable (UUID, CGRect) async -> Void = { _, _ in }
+        var focus: @Sendable (UUID) async -> Void = { _ in }
     }
 
     private struct ToolError: Error { let message: String; init(_ m: String) { message = m } }
@@ -45,6 +46,7 @@ struct MCPTools: Sendable {
             case "set_task_image":  value = try await setTaskImage(args)
             case "crop_task_image": value = try await cropTaskImage(args)
             case "remove_task_image": value = try await removeTaskImage(args)
+            case "focus_note":      value = try await focusNote(args)
             default: throw ToolError("Unknown tool: \(name)")
             }
             return CallTool.Result(content: [.text(json(value))], isError: false)
@@ -81,6 +83,7 @@ struct MCPTools: Sendable {
                     "float_on_top": prop("boolean", "Keep the note above other windows"),
                     "show_on_all_spaces": prop("boolean", "Show the note on every desktop/Space"),
                     "collapsed": prop("boolean", "Start rolled up to just the title bar"),
+                    "focus": prop("boolean", "Bring Tic to the front and focus the new note (default just surfaces it without stealing focus)"),
                  ])),
 
             Tool(name: "update_note",
@@ -95,7 +98,8 @@ struct MCPTools: Sendable {
                     "collapsed": prop("boolean", "Roll up to the title bar"),
                     "hide_completed": prop("boolean", "Hide checked-off tasks"),
                     "move_completed_to_bottom": prop("boolean", "Sink checked tasks to the bottom"),
-                    "open": prop("boolean", "true brings the note to front, false hides it"),
+                    "open": prop("boolean", "true surfaces the note (above other apps), false hides it"),
+                    "focus": prop("boolean", "Bring Tic to the front and focus the note (stronger than open)"),
                  ], required: ["note_id"])),
 
             Tool(name: "move_note",
@@ -105,6 +109,10 @@ struct MCPTools: Sendable {
                     "x": prop("number", "Left edge"), "y": prop("number", "Bottom edge"),
                     "width": prop("number", "Width"), "height": prop("number", "Height"),
                  ], required: ["note_id"])),
+
+            Tool(name: "focus_note",
+                 description: "Bring a note to the foreground and focus it — activates Tic and makes the note the key window, so the user is looking right at it. Use when you want to draw attention to a note; plain writes surface a note above other apps without stealing focus.",
+                 inputSchema: object(["note_id": prop("string", "The note's id")], required: ["note_id"])),
 
             Tool(name: "delete_note",
                  description: "Permanently delete a note and all its tasks. Cannot be undone.",
@@ -237,7 +245,7 @@ struct MCPTools: Sendable {
             }
         }
 
-        await window.open(stored.id)
+        if args.bool("focus") == true { await window.focus(stored.id) } else { await window.open(stored.id) }
         let tasks = try await database.tasks(noteId: stored.id)
         return noteValue(stored, tasks: tasks)
     }
@@ -269,7 +277,9 @@ struct MCPTools: Sendable {
             try await database.updateNoteListOptions(id: id, hideCompleted: hide, moveCompletedToBottom: move)
         }
 
-        if let open = args.bool("open") {
+        if args.bool("focus") == true {
+            await window.focus(id)
+        } else if let open = args.bool("open") {
             if open { await window.open(id) } else { await window.close(id) }
         }
 
@@ -377,6 +387,13 @@ struct MCPTools: Sendable {
         let levels = TaskOutline.indentLevelChanges(from: all, to: survivors).map { TaskLevelUpdate(id: $0.id, level: $0.level) }
         try await database.applyStructuralUpdate(deleteIds: doneIds, reorder: survivors, levels: levels)
         return .object(["cleared": .int(doneIds.count)])
+    }
+
+    private func focusNote(_ args: Args) async throws -> Value {
+        let id = try args.uuid("note_id")
+        _ = try await note(id)
+        await window.focus(id)   // opens if needed, activates Tic, makes the note key
+        return .object(["focused": .string(id.uuidString)])
     }
 
     // MARK: - Image tools

@@ -42,7 +42,8 @@ final class AppModel {
         mcp.windowActions = MCPTools.WindowActions(
             open: { [weak self] id in await self?.windows.openNoteByID(id) },
             close: { [weak self] id in await self?.windows.closeNoteByID(id) },
-            setFrame: { [weak self] id, rect in await self?.windows.setFrame(id, to: rect) }
+            setFrame: { [weak self] id, rect in await self?.windows.setFrame(id, to: rect) },
+            focus: { [weak self] id in await self?.windows.focusNoteByID(id) }
         )
     }
 
