@@ -3,7 +3,7 @@ import Site from '../layouts/Site.astro';
 import Note, { type Task } from './Note.astro';
 import Palette from './Palette.astro';
 import Icon from './Icon.astro';
-import { site, release, features, shortcuts, faqs, welcomeTasks, weekTasks, groceryTasks, agentTasks, agentCalls, mcpClients } from '../data/site';
+import { site, release, features, shortcuts, faqs, welcomeTasks, weekTasks, groceryTasks, agentTasks, agentChat, mcpClients } from '../data/site';
 import { competitors, comparePath } from '../data/compare';
 
 const id = (name: string) => `${site.url}/#${name}`;
@@ -227,28 +227,43 @@ Groceries</code></pre>
         </p>
       </div>
 
-      <div class="mt-10 grid items-center gap-6 sm:mt-14 lg:grid-cols-[1fr_1.05fr] lg:gap-12">
-        <!-- Agent transcript: the tool calls, appearing one by one -->
-        <figure class="anim overflow-hidden rounded-2xl bg-[#1e2027] text-left shadow-2xl ring-1 ring-black/20" style="--i:2">
-          <div class="flex items-center gap-2 border-b border-white/10 px-4 py-3" aria-hidden="true">
+      <div data-demo class="mt-10 grid items-start gap-6 sm:mt-14 lg:grid-cols-[1fr_1.02fr] lg:gap-12">
+        <!-- Chat: a person talking to their agent, which drives the note -->
+        <figure class="anim overflow-hidden rounded-2xl bg-[#1e2027] shadow-2xl ring-1 ring-black/20" style="--i:2">
+          <figcaption class="flex items-center gap-2 border-b border-white/10 px-4 py-3">
             <span class="grid size-6 place-items-center rounded-md bg-accent/20 text-accent"><Icon name="robot" class="size-4" /></span>
             <span class="text-sm font-medium text-white/80">Your AI agent</span>
             <span class="ml-auto flex items-center gap-1.5 text-xs text-white/40"><span class="size-2 rounded-full bg-[#28c840]" />connected to Tic</span>
-          </div>
-          <ol class="flex flex-col gap-2.5 p-4 font-mono text-[12px] leading-relaxed sm:p-5 sm:text-[13px]">
-            {agentCalls.map((call, i) => (
-              <li class="call flex flex-wrap items-baseline gap-x-2 gap-y-1" style={`--i:${3 + i}`}>
-                <span class="text-white/30" aria-hidden="true">▸</span>
-                <span class="rounded-md bg-accent/15 px-1.5 py-0.5 font-semibold text-accent">{call.tool}</span>
-                <span class="text-white/75">{call.args}</span>
-                {call.note && <span class="text-white/35">— {call.note}</span>}
-              </li>
+          </figcaption>
+          <div class="chat-log flex min-h-[15rem] flex-col gap-2.5 p-4 text-[13px] leading-relaxed sm:min-h-[16rem] sm:p-5">
+            {agentChat.map((turn, i) => (
+              turn.who === 'user' ? (
+                <p class="msg max-w-[85%] self-end rounded-2xl rounded-br-sm bg-accent px-3.5 py-2 text-on-accent" style={`--i:${i}`} data-who="user">{turn.text}</p>
+              ) : turn.who === 'agent' ? (
+                <p class="msg max-w-[85%] self-start rounded-2xl rounded-bl-sm bg-white/10 px-3.5 py-2 text-white/85" style={`--i:${i}`} data-who="agent" data-tick={turn.tick || undefined}>{turn.text}</p>
+              ) : (
+                <p class="msg flex flex-wrap items-baseline gap-x-2 gap-y-1 self-start rounded-xl bg-white/[0.06] px-3 py-2 font-mono text-[12px] ring-1 ring-white/10" style={`--i:${i}`} data-who="tool" data-reveal={turn.reveal?.join(',')}>
+                  <span class="rounded bg-accent/15 px-1.5 py-0.5 font-semibold text-accent">{turn.tool}</span>
+                  <span class="text-white/70">{turn.args}</span>
+                </p>
+              )
             ))}
-          </ol>
+            <span class="dots flex items-center gap-1.5 self-start rounded-2xl rounded-bl-sm bg-white/10 px-3.5 py-3" style="display:none" aria-hidden="true">
+              <span class="size-2 rounded-full bg-white/70" /><span class="size-2 rounded-full bg-white/70" /><span class="size-2 rounded-full bg-white/70" />
+            </span>
+          </div>
+          <!-- The chatbox: the person's message types out here, then sends up into the log -->
+          <div class="flex items-center gap-2 border-t border-white/10 p-3">
+            <div class="flex min-h-9 flex-1 items-center rounded-xl bg-white/[0.06] px-3 py-1.5 text-[13px] ring-1 ring-white/10">
+              <span class="chat-typed whitespace-pre-wrap text-white/85"></span><span class="chat-caret inline-block h-[1.1em] w-px translate-y-[0.15em] bg-accent"></span>
+              <span class="chat-ph text-white/35">Message your agent…</span>
+            </div>
+            <span class="grid size-9 shrink-0 place-items-center rounded-xl bg-accent text-on-accent" aria-hidden="true"><Icon name="arrow-up" class="size-4" /></span>
+          </div>
         </figure>
 
         <!-- The note it's writing into, filling in live -->
-        <div class="anim flex justify-center" style="--i:3">
+        <div class="anim flex justify-center lg:pt-2" style="--i:3">
           <Note id="agent-note" title="Kyoto trip 🗾" color="green" tasks={agentTasks} interactive quick="Ask your agent…" width="20em" style="font-size:14px" />
         </div>
       </div>
@@ -375,34 +390,83 @@ Groceries</code></pre>
     }
   });
 
-  // AI-agents section: play the fill-in once when it scrolls into view. The note's first three rows
-  // start un-ticked, then re-tick in sequence to show the completion cascade the agent triggers.
+  // AI-agents section: a looping demo of a person talking to their agent while a Tic note fills in.
+  // Reduced motion / no JS keep the finished conversation static (CSS shows everything).
   const agents = document.getElementById('agents');
   const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (agents && !calm) {
-    const cascade = [...agents.querySelectorAll('#agent-note .task')].slice(0, 3);
+    agents.setAttribute('data-play', ''); // reveal the framing (badge/heading/cards)
+    const msgs = [...agents.querySelectorAll<HTMLElement>('.msg')];
+    const rows = [...agents.querySelectorAll<HTMLElement>('#agent-note .task')];
+    const dots = agents.querySelector<HTMLElement>('.dots');
+    const typed = agents.querySelector<HTMLElement>('.chat-typed');
+    const placeholder = agents.querySelector<HTMLElement>('.chat-ph');
+    const cascade = rows.slice(0, 3); // Flights + its two legs
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
     const setDone = (task: Element, done: boolean) => {
       task.toggleAttribute('data-done', done);
       task.querySelector('.cb')?.setAttribute('aria-pressed', String(done));
     };
-    cascade.forEach((task) => setDone(task, false)); // reset before the reveal
-    let played = false;
-    const play = () => {
-      if (played) return;
-      played = true;
-      agents.setAttribute('data-play', '');
-      // After the rows have risen in (~2s of staggered entrance), tick Flights and its subtree.
-      cascade.forEach((task, i) => setTimeout(() => setDone(task, true), 2200 + i * 300));
+    // Type text into the chatbox one character at a time, then hold it briefly.
+    async function typeInto(text: string) {
+      if (!typed) return;
+      placeholder?.classList.add('hidden');
+      for (let i = 0; i < text.length; i++) { typed.textContent = text.slice(0, i + 1); await sleep(34 + Math.random() * 42); }
+      await sleep(450);
+    }
+    const clearBox = () => { if (typed) typed.textContent = ''; placeholder?.classList.remove('hidden'); };
+
+    let running = false;
+    const reset = () => {
+      msgs.forEach((m) => m.classList.remove('in'));
+      rows.forEach((r) => { r.classList.remove('in'); setDone(r, false); });
+      if (dots) dots.style.display = 'none';
+      clearBox();
     };
+
+    async function cycle() {
+      reset();
+      await sleep(700);
+      for (const msg of msgs) {
+        if (msg.dataset.who === 'user') {
+          // The person types their message into the chatbox, then it sends up into the log.
+          await typeInto(msg.textContent || '');
+          clearBox();
+          msg.classList.add('in');
+          await sleep(500);
+          continue;
+        }
+        // The agent "types" before each reply / tool call.
+        if (dots) { dots.style.display = 'flex'; await sleep(650); dots.style.display = 'none'; }
+        msg.classList.add('in');
+        // A tool call fills in the note rows it names.
+        if (msg.dataset.reveal) {
+          for (const idx of msg.dataset.reveal.split(',')) { rows[+idx]?.classList.add('in'); await sleep(260); }
+        }
+        // The "done" message ticks Flights and both legs.
+        if (msg.dataset.tick !== undefined) {
+          cascade.forEach((task, i) => setTimeout(() => setDone(task, true), i * 260));
+        }
+        await sleep(msg.dataset.reveal ? 500 : 900);
+      }
+      await sleep(3200); // hold the finished note, then loop
+    }
+
+    async function loop() {
+      running = true;
+      while (running) await cycle();
+    }
+
+    // Only animate while the section is on screen (saves work when scrolled away).
     if ('IntersectionObserver' in window) {
       const observer = new IntersectionObserver((entries) => {
-        if (entries.some((e) => e.isIntersecting)) { observer.disconnect(); play(); }
-      }, { threshold: 0.2, rootMargin: '0px 0px -8% 0px' });
+        const visible = entries.some((e) => e.isIntersecting);
+        if (visible && !running) loop();
+        else if (!visible) running = false;
+      }, { threshold: 0.25 });
       observer.observe(agents);
-      // Failsafe: if the observer somehow never fires, reveal anyway so the section is never left blank.
-      setTimeout(play, 4000);
     } else {
-      play(); // no IntersectionObserver: just show it
+      loop();
     }
   }
 </script>

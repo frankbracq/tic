@@ -82,16 +82,24 @@ export const agentTasks: Task[] = [
   { t: 'Book outbound', l: 1, done: true },
   { t: 'Book return', l: 1, done: true },
   { t: 'Lodging' },
-  { t: 'Ryokan, 2 nights', l: 1 },
   { t: 'Food &amp; coffee spots' },
 ];
 
-// The agent's tool calls, shown as a transcript beside the filling note.
-export const agentCalls: { tool: string; args: string; note?: string }[] = [
-  { tool: 'create_note', args: '“Kyoto trip” · green' },
-  { tool: 'add_tasks', args: 'Flights · Lodging · Food' },
-  { tool: 'add_tasks', args: 'Book outbound · Book return', note: 'under Flights' },
-  { tool: 'update_task', args: 'Flights → done', note: 'subtree ticks too' },
+// The looping demo conversation. `reveal` lists the note rows (by index) a tool call fills in;
+// `tick` marks the message that checks the Flights subtree off. Rendered as chat bubbles.
+export type ChatTurn =
+  | { who: 'user'; text: string }
+  | { who: 'agent'; text: string; tick?: boolean }
+  | { who: 'tool'; tool: string; args: string; reveal?: number[] };
+export const agentChat: ChatTurn[] = [
+  { who: 'user', text: 'Plan a 3-day trip to Kyoto 🗾' },
+  { who: 'agent', text: 'On it — making you a note 👇' },
+  { who: 'tool', tool: 'create_note', args: '“Kyoto trip” · green' },
+  { who: 'tool', tool: 'add_tasks', args: 'Flights · Book outbound · Book return', reveal: [0, 1, 2] },
+  { who: 'tool', tool: 'add_tasks', args: 'Lodging · Food & coffee', reveal: [3, 4] },
+  { who: 'user', text: 'Book the flights and check them off' },
+  { who: 'tool', tool: 'update_task', args: 'Flights → done' },
+  { who: 'agent', text: 'Done ✓ Flights and both legs are checked off.', tick: true },
 ];
 
 // Popular MCP clients that can drive Tic. Icons are Phosphor (generic, not brand logos).
