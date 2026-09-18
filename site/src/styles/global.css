@@ -117,3 +117,42 @@ p.headline-line .tick { width: 1.15em; height: 1.15em; margin: 0; color: var(--a
 .headline-line[data-done] .tick .on { display: block; }
 @media (width < 40rem) { h1.headline-line .tick { width: 0.72em; height: 0.72em; margin-top: 0.1em; } }
 @media (hover: none) { .note-strip { opacity: 1; } }
+
+/* ── AI agents section: looping chat + live-fill demo ─────────────────────── */
+/* Elements transition both ways so a JS timeline can loop them. The `.js` class (set early) gates
+   the hidden start state, so without JS everything shows; reduced motion opts out via the media. */
+@keyframes rise { from { opacity: 0; transform: translateY(0.6rem); } to { opacity: 1; transform: none; } }
+@keyframes dot { 0%, 80%, 100% { transform: translateY(0); opacity: 0.45; } 40% { transform: translateY(-0.22rem); opacity: 1; } }
+
+[data-agent] .msg { transition: opacity 0.45s ease, transform 0.45s ease; }
+[data-agent] #agent-note .task { transition: opacity 0.4s ease, transform 0.4s ease; }
+
+/* The typing indicator lives inside the bubble and overlays its text, so swapping dots → text
+   never changes the bubble's size or the layout around it (the reserved slot is the text). */
+[data-agent] .msg-body { transition: opacity 0.25s ease; }
+[data-agent] .msg-typing { position: absolute; inset: 0; display: flex; align-items: center; gap: 0.35rem; padding-left: 0.9rem; opacity: 0; pointer-events: none; transition: opacity 0.2s ease; }
+[data-agent] .msg-typing i { width: 0.5rem; height: 0.5rem; border-radius: 9999px; background: rgba(255, 255, 255, 0.7); animation: dot 1.2s infinite; }
+[data-agent] .msg-typing i:nth-child(2) { animation-delay: 0.15s; }
+[data-agent] .msg-typing i:nth-child(3) { animation-delay: 0.3s; }
+[data-agent] .msg.pending .msg-body { opacity: 0; }
+[data-agent] .msg.pending .msg-typing { opacity: 1; }
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Section framing (badge, heading, cards) rises in once when scrolled into view. */
+  .js [data-agent]:not([data-play]) .anim { opacity: 0; }
+  [data-agent][data-play] .anim { animation: rise 0.55s both; animation-delay: calc(var(--i, 0) * 0.12s); }
+
+  /* Chat bubbles and note rows start hidden; the timeline reveals and resets them each loop. */
+  .js [data-agent] .msg { opacity: 0; transform: translateY(0.6rem); }
+  .js [data-agent] .msg.in { opacity: 1; transform: none; }
+  .js [data-agent] #agent-note .task { opacity: 0; transform: translateY(0.4rem); }
+  .js [data-agent] #agent-note .task.in { opacity: 1; transform: none; }
+}
+
+/* Chatbox caret blink (the typing cursor in the demo's message input). */
+@keyframes chatcaret { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+[data-agent] .chat-caret { animation: chatcaret 1s steps(1) infinite; }
+
+/* The AI-agents note sits on Tic's own desktop wallpaper, so it reads as a note that appeared on
+   your Mac — tying the feature to Tic's "lists that live on your desktop" idea. */
+.desk-stage { background: var(--wallpaper); }

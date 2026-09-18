@@ -18,6 +18,7 @@ final class NoteController {
 
     @ObservationIgnored private let db: AppDatabase
     @ObservationIgnored private var observation: Task<Void, Never>?
+    @ObservationIgnored private var noteObservation: Task<Void, Never>?
     @ObservationIgnored private var imageObservation: Task<Void, Never>?
     @ObservationIgnored private var loadingThumbnails: Set<UUID> = []
 
@@ -55,6 +56,18 @@ final class NoteController {
                 NSLog("[Tic] task observation ended for \(noteID): \(error)")
             }
         }
+        // The note's own row: an agent (or any other writer) changing the title, colour, flags, or
+        // list options shows up here live. Own writes echo back as no-ops (the diff sees no change).
+        noteObservation?.cancel()
+        noteObservation = Task { [weak self, db, noteID] in
+            do {
+                for try await updated in db.observeNote(id: noteID) {
+                    if let updated { self?.applyObservedNote(updated) }
+                }
+            } catch {
+                NSLog("[Tic] note observation ended for \(noteID): \(error)")
+            }
+        }
         imageObservation?.cancel()
         imageObservation = Task { [weak self, db, noteID] in
             do {
@@ -71,8 +84,25 @@ final class NoteController {
     func stop() {
         observation?.cancel()
         observation = nil
+        noteObservation?.cancel()
+        noteObservation = nil
         imageObservation?.cancel()
         imageObservation = nil
+    }
+
+    /// Applies an observed note-row change: replaces `note`, and drives the live window only for the
+    /// fields that actually changed. The controller's own actions mutate `note` first, so their echo
+    /// is a no-op here (nothing double-applies).
+    private func applyObservedNote(_ updated: Note) {
+        let old = note
+        guard old != updated else { return }
+        note = updated
+        if old.floatOnTop != updated.floatOnTop || old.showOnAllSpaces != updated.showOnAllSpaces {
+            onApplyBehavior?(updated.floatOnTop, updated.showOnAllSpaces)
+        }
+        if old.isCollapsed != updated.isCollapsed {
+            onSetCollapsed?(updated.isCollapsed)
+        }
     }
 
     // MARK: - Task actions
@@ -339,10 +369,7 @@ final class NoteController {
 
     /// The `isDone`/`completedAt` deltas between two same-ordered task lists.
     private func completionChanges(from before: [TaskItem], to after: [TaskItem]) -> [TaskCompletionUpdate] {
-        zip(before, after).compactMap { b, a in
-            guard b.isDone != a.isDone || b.completedAt != a.completedAt else { return nil }
-            return TaskCompletionUpdate(id: a.id, isDone: a.isDone, completedAt: a.completedAt)
-        }
+        TaskOutline.completionChanges(from: before, to: after)
     }
 }
 

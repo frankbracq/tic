@@ -204,4 +204,38 @@ struct NoteControllerCompletedOptionsTests {
         #expect(c.note.hideCompleted)
         #expect(c.note.moveCompletedToBottom)
     }
+
+    @Test("an out-of-band note write reaches the controller and drives the live window once")
+    func noteRowObservationDrivesWindow() async throws {
+        let db = try AppDatabase.makeInMemory()
+        var note = Note(title: "Before", floatOnTop: false)
+        try await db.insert(note)
+        let c = NoteController(note: note, database: db)
+
+        var behaviorCalls: [(Bool, Bool)] = []
+        var collapseCalls: [Bool] = []
+        c.onApplyBehavior = { f, s in behaviorCalls.append((f, s)) }
+        c.onSetCollapsed = { collapseCalls.append($0) }
+        c.start()
+        defer { c.stop() }
+
+        // An agent-style write straight to the DB (title + float + collapsed), bypassing the controller.
+        note.title = "After"; note.floatOnTop = true; note.isCollapsed = true
+        try await db.update(note)
+
+        try await waitFor { c.note.title == "After" }
+        #expect(c.note.floatOnTop == true)
+        #expect(behaviorCalls.contains { $0.0 == true })   // float change drove the window
+        #expect(collapseCalls.contains(true))              // collapse change drove the window
+    }
+
+    /// Polls the controller's optimistic/observed state until `condition` holds (the observation is async).
+    private func waitFor(_ condition: @escaping () -> Bool, timeout: Duration = .seconds(2)) async throws {
+        let deadline = ContinuousClock.now.advanced(by: timeout)
+        while ContinuousClock.now < deadline {
+            if condition() { return }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(condition(), "condition not met before timeout")
+    }
 }

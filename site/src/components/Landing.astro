@@ -3,7 +3,7 @@ import Site from '../layouts/Site.astro';
 import Note, { type Task } from './Note.astro';
 import Palette from './Palette.astro';
 import Icon from './Icon.astro';
-import { site, release, features, shortcuts, faqs, welcomeTasks, weekTasks, groceryTasks } from '../data/site';
+import { site, release, features, shortcuts, faqs, welcomeTasks, weekTasks, groceryTasks, agentTasks, agentChat, mcpClients } from '../data/site';
 import { competitors, comparePath } from '../data/compare';
 
 const id = (name: string) => `${site.url}/#${name}`;
@@ -114,6 +114,10 @@ const kbd = 'inline-grid min-w-8 place-items-center rounded-md bg-surface px-2 p
           <a href={site.download} class:list={[btn, 'max-sm:w-full']}><Icon name="download-simple" class="size-5" />Download for Mac</a>
           <a href={site.repo} class:list={[btnGhost, 'max-sm:w-full']}><Icon name="github-logo" class="size-5" />View source on GitHub</a>
         </div>
+        <a href="#agents" class="group mt-6 inline-flex items-center gap-2 rounded-full bg-accent/10 px-3.5 py-1.5 text-sm font-semibold text-accent ring-1 ring-accent/20 transition hover:bg-accent/15 max-sm:w-full max-sm:justify-center">
+          <Icon name="sparkle-fill" class="size-4" />New — let Claude, Cursor &amp; AI agents draft your lists
+          <Icon name="arrow-right" class="size-4 transition group-hover:translate-x-0.5" />
+        </a>
         <p class="mt-5 text-sm text-muted">Free and open source{release && `, version ${release.version}`}. Needs macOS 14 Sonoma or later.</p>
         <a href={site.productHunt} target="_blank" rel="noopener" class="mt-6 flex w-fit max-sm:mx-auto">
           <img src="https://api.producthunt.com/widgets/embed-image/v1/follow.svg?product_id=1317575&theme=light" alt="Tic - To-do lists that live on your desktop, not in a menu bar | Product Hunt" width="250" height="54" decoding="async" />
@@ -131,6 +135,74 @@ const kbd = 'inline-grid min-w-8 place-items-center rounded-md bg-surface px-2 p
       <h2 class:list={[h2, 'max-w-3xl']}>A to-do list you can see without going looking for it</h2>
       <div class="mt-10 flex flex-col gap-14 sm:mt-16 sm:gap-24">
         {features.map((f, i) => (
+          f.id === 'agents' ? (
+            <div id="agents" data-agent class="scroll-mt-8">
+              <p class="anim inline-flex items-center gap-2 rounded-full bg-accent/10 px-3 py-1 text-sm font-semibold text-accent ring-1 ring-accent/20" style="--i:0">
+                <Icon name="sparkle" class="size-4" />New — works with AI agents
+              </p>
+              <h3 class="anim mt-4 font-display text-[clamp(1.5rem,2.6vw,2rem)] leading-tight tracking-[-0.02em] font-bold" style="--i:1">{f.title}</h3>
+              <p class="anim mt-3 max-w-2xl leading-relaxed text-muted sm:mt-4 sm:text-lg" style="--i:2">{f.body}</p>
+
+              <div data-demo class="mt-8 grid items-start gap-6 sm:mt-10 lg:grid-cols-[1fr_1.02fr] lg:gap-12">
+                <figure class="anim overflow-hidden rounded-2xl bg-[#1e2027] shadow-2xl ring-1 ring-black/20" style="--i:2">
+                  <figcaption class="flex items-center gap-2 border-b border-white/10 px-4 py-3">
+                    <span class="grid size-6 place-items-center rounded-md bg-accent/20 text-accent"><Icon name="robot" class="size-4" /></span>
+                    <span class="text-sm font-medium text-white/80">Your AI agent</span>
+                    <span class="ml-auto flex items-center gap-1.5 text-xs text-white/40"><span class="size-2 rounded-full bg-[#28c840]" />connected to Tic</span>
+                  </figcaption>
+                  <div class="chat-log flex min-h-[15rem] flex-col gap-2.5 p-4 text-[13px] leading-relaxed sm:min-h-[16rem] sm:p-5">
+                    {agentChat.map((turn, i) => (
+                      turn.who === 'user' ? (
+                        <p class="msg max-w-[85%] self-end rounded-2xl rounded-br-sm bg-accent px-3.5 py-2 text-on-accent" style={`--i:${i}`} data-who="user">{turn.text}</p>
+                      ) : turn.who === 'agent' ? (
+                        <p class="msg relative max-w-[85%] self-start rounded-2xl rounded-bl-sm bg-white/10 px-3.5 py-2 text-white/85" style={`--i:${i}`} data-who="agent">
+                          <span class="msg-body">{turn.text}</span>
+                          <span class="msg-typing" aria-hidden="true"><i /><i /><i /></span>
+                        </p>
+                      ) : (
+                        <p class="msg relative max-w-[92%] self-start rounded-xl bg-white/[0.06] px-3 py-2 text-[12.5px] ring-1 ring-white/10" style={`--i:${i}`} data-who="tool" data-reveal={turn.reveal?.join(',')} data-tick={turn.tick || undefined}>
+                          <span class="msg-body flex items-center gap-2">
+                            <img src="/icon.png" alt="" width="18" height="18" class="size-[18px] shrink-0 rounded-[5px]" />
+                            <span class="font-medium text-white/90">Tic</span>
+                            <span class="text-white/25">·</span>
+                            <span class="text-white/70">{turn.label}</span>
+                          </span>
+                          <span class="msg-typing" aria-hidden="true"><i /><i /><i /></span>
+                        </p>
+                      )
+                    ))}
+                  </div>
+                  <div class="flex items-center gap-2 border-t border-white/10 p-3">
+                    <div class="flex min-h-9 flex-1 items-center rounded-xl bg-white/[0.06] px-3 py-1.5 text-[13px] ring-1 ring-white/10">
+                      <span class="chat-typed whitespace-pre-wrap text-white/85"></span><span class="chat-caret inline-block h-[1.1em] w-px translate-y-[0.15em] bg-accent"></span>
+                      <span class="chat-ph text-white/35">Message your agent…</span>
+                    </div>
+                    <span class="grid size-9 shrink-0 place-items-center rounded-xl bg-accent text-on-accent" aria-hidden="true"><Icon name="arrow-up" class="size-4" /></span>
+                  </div>
+                </figure>
+
+                <div class="anim lg:pt-2" style="--i:3">
+                  <div class="desk-stage flex justify-center rounded-[1.4rem] p-6 ring-1 ring-black/5 sm:p-10">
+                    <Note id="agent-note" title="Kyoto trip 🗾" color="green" tasks={agentTasks} interactive quick="Ask your agent…" width="20em" style="font-size:14px" />
+                  </div>
+                </div>
+              </div>
+
+              <div class="anim mt-8 sm:mt-10" style="--i:8">
+                <p class="text-sm font-medium text-muted">Set it up once for the client you use</p>
+                <ul class="mt-4 flex flex-wrap gap-2.5">
+                  {mcpClients.map((c) => (
+                    <li class="inline-flex items-center gap-2 rounded-full bg-surface px-3.5 py-1.5 text-sm font-medium ring-1 ring-line">
+                      <Icon name={c.icon} class="size-4 text-muted" />{c.name}
+                    </li>
+                  ))}
+                </ul>
+                <p class="mt-5 max-w-2xl text-sm text-muted">
+                  Open <span class="font-medium text-fg">AI Agents (MCP)…</span> from the menu bar, flip it on, and copy the setup for your client — or add Cursor and VS Code in one click. It’s off by default and runs entirely on your Mac.
+                </p>
+              </div>
+            </div>
+          ) : (
           <article id={f.id} class="grid scroll-mt-8 items-center gap-6 lg:grid-cols-2 lg:gap-16">
             <div class:list={['max-w-lg', { 'lg:order-2': i % 2 }]}>
               <h3 class="font-display text-[clamp(1.5rem,2.6vw,2rem)] leading-tight tracking-[-0.02em] font-bold">{f.title}</h3>
@@ -210,6 +282,7 @@ Groceries</code></pre>
               </div>
             )}
           </article>
+          )
         ))}
       </div>
     </section>
@@ -319,4 +392,89 @@ Groceries</code></pre>
       });
     }
   });
+
+  // AI-agents section: a looping demo of a person talking to their agent while a Tic note fills in.
+  // Reduced motion / no JS keep the finished conversation static (CSS shows everything).
+  const agents = document.getElementById('agents');
+  const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (agents && !calm) {
+    agents.setAttribute('data-play', ''); // reveal the framing (badge/heading/cards)
+    const msgs = [...agents.querySelectorAll<HTMLElement>('.msg')];
+    const rows = [...agents.querySelectorAll<HTMLElement>('#agent-note .task')];
+    const typed = agents.querySelector<HTMLElement>('.chat-typed');
+    const placeholder = agents.querySelector<HTMLElement>('.chat-ph');
+    const cascade = rows.slice(0, 3); // Flights + its two legs
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    const setDone = (task: Element, done: boolean) => {
+      task.toggleAttribute('data-done', done);
+      task.querySelector('.cb')?.setAttribute('aria-pressed', String(done));
+    };
+    // Type text into the chatbox one character at a time, then hold it briefly. Stops if retired.
+    async function typeInto(text: string, my: number) {
+      if (!typed) return;
+      placeholder?.classList.add('hidden');
+      for (let i = 0; i < text.length; i++) { if (my !== token) return; typed.textContent = text.slice(0, i + 1); await sleep(34 + Math.random() * 42); }
+      await sleep(450);
+    }
+    const clearBox = () => { if (typed) typed.textContent = ''; placeholder?.classList.remove('hidden'); };
+
+    // A cancellation token. Every run captures the current value; bumping it retires that run so a
+    // re-entry (scroll away and back) can never leave two timelines mutating the note at once —
+    // which is what made the reveals land out of order.
+    let token = 0;
+    const live = (my: number) => my === token;
+    const reset = () => {
+      msgs.forEach((m) => m.classList.remove('in', 'pending'));
+      rows.forEach((r) => { r.classList.remove('in'); setDone(r, false); });
+      clearBox();
+    };
+
+    async function cycle(my: number) {
+      reset();
+      await sleep(700); if (!live(my)) return;
+      for (const msg of msgs) {
+        if (!live(my)) return;
+        if (msg.dataset.who === 'user') {
+          // The person types their message into the chatbox, then it sends up into the log.
+          await typeInto(msg.textContent || '', my); if (!live(my)) return;
+          clearBox();
+          msg.classList.add('in');
+          await sleep(500);
+          continue;
+        }
+        // The agent "types" in the bubble's own slot (dots → text, no layout shift).
+        msg.classList.add('in', 'pending');
+        await sleep(700); if (!live(my)) return;
+        msg.classList.remove('pending');
+        // A tool call fills in the note rows it names, in order.
+        if (msg.dataset.reveal) {
+          for (const idx of msg.dataset.reveal.split(',')) { if (!live(my)) return; rows[+idx]?.classList.add('in'); await sleep(260); }
+        }
+        // The "done" message ticks Flights and both legs.
+        if (msg.dataset.tick !== undefined) {
+          cascade.forEach((task, i) => setTimeout(() => { if (live(my)) setDone(task, true); }, i * 260));
+        }
+        await sleep(msg.dataset.reveal ? 500 : 900);
+      }
+      await sleep(3200); // hold the finished note, then loop
+    }
+
+    async function loop() {
+      const my = token;
+      while (live(my)) await cycle(my);
+    }
+
+    // Only animate while the section is on screen; each visibility change retires the old run first.
+    if ('IntersectionObserver' in window) {
+      const observer = new IntersectionObserver((entries) => {
+        const visible = entries.some((e) => e.isIntersecting);
+        token++;                 // retire whatever was running
+        if (visible) loop();     // start one fresh run
+        else reset();
+      }, { threshold: 0.25 });
+      observer.observe(agents);
+    } else {
+      loop();
+    }
+  }
 </script>

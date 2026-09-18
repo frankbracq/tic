@@ -54,6 +54,8 @@ const ogImage = new URL('/og.png', Astro.site);
 
     <Font cssVariable="--font-bricolage" preload />
     {jsonLd && <script type="application/ld+json" set:html={JSON.stringify(jsonLd).replace(/</g, '\\u003c')} />}
+    {/* Marks JS as available so scroll-in animations can hide their pre-play state without a no-JS flash. */}
+    <script is:inline>document.documentElement.classList.add('js')</script>
   </head>
   <body class="bg-bg font-sans text-fg">
     <slot />

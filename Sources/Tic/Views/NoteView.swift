@@ -177,6 +177,10 @@ struct NoteView: View {
                 guard let newID else { return }
                 withAnimation(.easeInOut(duration: 0.2)) { proxy.scrollTo(newID, anchor: .bottom) }
             }
+            .onChange(of: controller.note.title) { _, newTitle in
+                // An agent (or another writer) renamed the note: reflect it unless the user is mid-edit.
+                if !titleFocused { titleText = newTitle }
+            }
             .overlay(alignment: .top) {
                 if display.isEmpty {
                     Text(controller.tasks.isEmpty

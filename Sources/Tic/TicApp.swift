@@ -1,7 +1,6 @@
 import SwiftUI
 import AppKit
 
-@main
 struct TicApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
@@ -115,6 +114,8 @@ private struct MenuBarContent: View {
         Divider()
 
         Button("Search Lists…") { model.openSearch() }
+
+        Button("AI Agents (MCP)…") { model.openMCPSetup() }
 
         Toggle("Launch at Login", isOn: Binding(
             get: { model.launchAtLogin },

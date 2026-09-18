@@ -33,7 +33,7 @@ export const site = {
     'Tic is a free, open-source Mac app that keeps your to-do lists on the desktop as floating sticky notes, with subtasks, Markdown and keyboard shortcuts.',
   summary:
     'Tic is a free, open-source macOS app that keeps to-do lists on the desktop as floating, Stickies-style sticky notes instead of hiding them behind a menu bar. Each list is its own small window with subtasks, inline Markdown, pasted images, solid or glass styles and keyboard shortcuts. It needs macOS 14 Sonoma or later.',
-  keywords: ['to-do list', 'sticky notes', 'Stickies alternative', 'desktop checklist', 'task manager', 'macOS', 'open source'],
+  keywords: ['to-do list', 'sticky notes', 'Stickies alternative', 'desktop checklist', 'task manager', 'macOS', 'open source', 'MCP', 'AI agent'],
   repo: 'https://github.com/kasvith/tic',
   download: 'https://github.com/kasvith/tic/releases/latest',
   changelog: 'https://github.com/kasvith/tic/blob/main/CHANGELOG.md',
@@ -75,6 +75,45 @@ export const weekTasks: Task[] = [
   { t: 'Book flights to Rome' },
 ];
 
+// The MCP section: an agent building a trip list live. Seeded done so no-JS/reduced-motion shows the
+// finished cascade; the script un-ticks then re-ticks to animate it.
+export const agentTasks: Task[] = [
+  { t: 'Flights', done: true },
+  { t: 'Book outbound', l: 1, done: true },
+  { t: 'Book return', l: 1, done: true },
+  { t: 'Lodging' },
+  { t: 'Food &amp; coffee spots' },
+];
+
+// The looping demo conversation. `reveal` lists the note rows (by index) a tool call fills in;
+// `tick` marks the message that checks the Flights subtree off. Rendered as chat bubbles.
+export type ChatTurn =
+  | { who: 'user'; text: string }
+  | { who: 'agent'; text: string }
+  | { who: 'tool'; label: string; reveal?: number[]; tick?: boolean };
+export const agentChat: ChatTurn[] = [
+  { who: 'user', text: 'Plan a 3-day trip to Kyoto 🗾' },
+  { who: 'agent', text: 'On it — I’ll set this up in Tic 👇' },
+  { who: 'tool', label: 'Created the note “Kyoto trip”' },
+  { who: 'tool', label: 'Added Flights, Book outbound, Book return', reveal: [0, 1, 2] },
+  { who: 'tool', label: 'Added Lodging and Food & coffee', reveal: [3, 4] },
+  { who: 'user', text: 'Book the flights and check them off' },
+  { who: 'tool', label: 'Checked off Flights', tick: true },
+  { who: 'agent', text: 'Done ✓ Flights and both legs are ticked.' },
+];
+
+// Popular MCP clients that can drive Tic. Icons are Phosphor (generic, not brand logos).
+export const mcpClients: { name: string; icon: string }[] = [
+  { name: 'Claude', icon: 'sparkle' },
+  { name: 'Claude Code', icon: 'terminal-window' },
+  { name: 'Cursor', icon: 'cursor' },
+  { name: 'VS Code', icon: 'code' },
+  { name: 'Zed', icon: 'lightning' },
+  { name: 'Codex CLI', icon: 'terminal-window' },
+  { name: 'Gemini CLI', icon: 'sparkle' },
+  { name: 'Windsurf', icon: 'wind' },
+];
+
 export const features = [
   {
     id: 'float',
@@ -85,6 +124,11 @@ export const features = [
     id: 'subtasks',
     title: 'Subtasks, notes and Markdown',
     body: 'Nest tasks three levels deep. Finish every subtask and the parent ticks itself off. Add a second line with Shift-Return, and write bold, italic, code, strikethrough or links right in the task.',
+  },
+  {
+    id: 'agents',
+    title: 'Let your AI agent draft the list',
+    body: 'Tic speaks MCP, so Claude, Cursor, Zed and the Codex or Gemini CLIs can create notes, draft tasks and tick them off — live on your desktop. It’s off by default, with one-click setup for each client.',
   },
   {
     id: 'images',
@@ -143,6 +187,10 @@ export const faqs = [
   {
     q: 'Where are my lists stored?',
     a: 'In a local SQLite database at ~/Library/Application Support/Tic/tic.sqlite. Nothing leaves your Mac.',
+  },
+  {
+    q: 'Can AI agents add tasks to Tic?',
+    a: 'Yes. Turn on the MCP server from the menu bar (AI Agents (MCP)…) and agents like Claude, Cursor, VS Code, Zed and the Codex or Gemini CLIs can create notes, draft tasks, tick them off and more. The window gives you a one-click or copy-paste setup for each. It is off by default and runs entirely on your Mac.',
   },
   {
     q: 'Does Tic sync between Macs?',

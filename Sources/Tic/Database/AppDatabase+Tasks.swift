@@ -6,6 +6,10 @@ import GRDB
 extension AppDatabase {
     // MARK: - Tasks
 
+    func task(id: UUID) async throws -> TaskItem? {
+        try await dbQueue.read { db in try TaskItem.filter(TaskItem.Columns.id == id).fetchOne(db) }
+    }
+
     func tasks(noteId: UUID) async throws -> [TaskItem] {
         try await dbQueue.read { db in
             try TaskItem
@@ -143,6 +147,23 @@ extension AppDatabase {
     func deleteTaskImage(taskId: UUID) async throws {
         try await dbQueue.write { db in
             try db.execute(sql: "DELETE FROM taskImage WHERE taskId = ?", arguments: [taskId])
+        }
+    }
+
+    /// Whether a task has an image (a cheap existence check, never loads the blob).
+    func hasImage(taskId: UUID) async throws -> Bool {
+        try await dbQueue.read { db in
+            try Bool.fetchOne(db, sql: "SELECT 1 FROM taskImage WHERE taskId = ?", arguments: [taskId]) ?? false
+        }
+    }
+
+    /// The ids of a note's tasks that have an image — a one-shot for `get_note` (the observation twin
+    /// is `observeTaskImageCrops`).
+    func taskImageIds(noteId: UUID) async throws -> Set<UUID> {
+        try await dbQueue.read { db in
+            Set(try UUID.fetchAll(db, sql: """
+                SELECT i.taskId FROM taskImage i JOIN task t ON t.id = i.taskId WHERE t.noteId = ?
+                """, arguments: [noteId]))
         }
     }
 
