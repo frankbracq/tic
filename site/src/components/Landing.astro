@@ -131,7 +131,6 @@ const kbd = 'inline-grid min-w-8 place-items-center rounded-md bg-surface px-2 p
       </div>
     </section>
 
-
     <section id="features" class="mx-auto max-w-6xl scroll-mt-8 px-5 py-12 sm:py-20">
       <h2 class:list={[h2, 'max-w-3xl']}>A to-do list you can see without going looking for it</h2>
       <div class="mt-10 flex flex-col gap-14 sm:mt-16 sm:gap-24">
@@ -182,8 +181,10 @@ const kbd = 'inline-grid min-w-8 place-items-center rounded-md bg-surface px-2 p
                   </div>
                 </figure>
 
-                <div class="anim flex justify-center lg:pt-2" style="--i:3">
-                  <Note id="agent-note" title="Kyoto trip 🗾" color="green" tasks={agentTasks} interactive quick="Ask your agent…" width="20em" style="font-size:14px" />
+                <div class="anim lg:pt-2" style="--i:3">
+                  <div class="desk-stage flex justify-center rounded-[1.4rem] p-6 ring-1 ring-black/5 sm:p-10">
+                    <Note id="agent-note" title="Kyoto trip 🗾" color="green" tasks={agentTasks} interactive quick="Ask your agent…" width="20em" style="font-size:14px" />
+                  </div>
                 </div>
               </div>
 
@@ -408,29 +409,34 @@ Groceries</code></pre>
       task.toggleAttribute('data-done', done);
       task.querySelector('.cb')?.setAttribute('aria-pressed', String(done));
     };
-    // Type text into the chatbox one character at a time, then hold it briefly.
-    async function typeInto(text: string) {
+    // Type text into the chatbox one character at a time, then hold it briefly. Stops if retired.
+    async function typeInto(text: string, my: number) {
       if (!typed) return;
       placeholder?.classList.add('hidden');
-      for (let i = 0; i < text.length; i++) { typed.textContent = text.slice(0, i + 1); await sleep(34 + Math.random() * 42); }
+      for (let i = 0; i < text.length; i++) { if (my !== token) return; typed.textContent = text.slice(0, i + 1); await sleep(34 + Math.random() * 42); }
       await sleep(450);
     }
     const clearBox = () => { if (typed) typed.textContent = ''; placeholder?.classList.remove('hidden'); };
 
-    let running = false;
+    // A cancellation token. Every run captures the current value; bumping it retires that run so a
+    // re-entry (scroll away and back) can never leave two timelines mutating the note at once —
+    // which is what made the reveals land out of order.
+    let token = 0;
+    const live = (my: number) => my === token;
     const reset = () => {
-      msgs.forEach((m) => m.classList.remove('in'));
+      msgs.forEach((m) => m.classList.remove('in', 'pending'));
       rows.forEach((r) => { r.classList.remove('in'); setDone(r, false); });
       clearBox();
     };
 
-    async function cycle() {
+    async function cycle(my: number) {
       reset();
-      await sleep(700);
+      await sleep(700); if (!live(my)) return;
       for (const msg of msgs) {
+        if (!live(my)) return;
         if (msg.dataset.who === 'user') {
           // The person types their message into the chatbox, then it sends up into the log.
-          await typeInto(msg.textContent || '');
+          await typeInto(msg.textContent || '', my); if (!live(my)) return;
           clearBox();
           msg.classList.add('in');
           await sleep(500);
@@ -438,15 +444,15 @@ Groceries</code></pre>
         }
         // The agent "types" in the bubble's own slot (dots → text, no layout shift).
         msg.classList.add('in', 'pending');
-        await sleep(700);
+        await sleep(700); if (!live(my)) return;
         msg.classList.remove('pending');
-        // A tool call fills in the note rows it names.
+        // A tool call fills in the note rows it names, in order.
         if (msg.dataset.reveal) {
-          for (const idx of msg.dataset.reveal.split(',')) { rows[+idx]?.classList.add('in'); await sleep(260); }
+          for (const idx of msg.dataset.reveal.split(',')) { if (!live(my)) return; rows[+idx]?.classList.add('in'); await sleep(260); }
         }
         // The "done" message ticks Flights and both legs.
         if (msg.dataset.tick !== undefined) {
-          cascade.forEach((task, i) => setTimeout(() => setDone(task, true), i * 260));
+          cascade.forEach((task, i) => setTimeout(() => { if (live(my)) setDone(task, true); }, i * 260));
         }
         await sleep(msg.dataset.reveal ? 500 : 900);
       }
@@ -454,16 +460,17 @@ Groceries</code></pre>
     }
 
     async function loop() {
-      running = true;
-      while (running) await cycle();
+      const my = token;
+      while (live(my)) await cycle(my);
     }
 
-    // Only animate while the section is on screen (saves work when scrolled away).
+    // Only animate while the section is on screen; each visibility change retires the old run first.
     if ('IntersectionObserver' in window) {
       const observer = new IntersectionObserver((entries) => {
         const visible = entries.some((e) => e.isIntersecting);
-        if (visible && !running) loop();
-        else if (!visible) running = false;
+        token++;                 // retire whatever was running
+        if (visible) loop();     // start one fresh run
+        else reset();
       }, { threshold: 0.25 });
       observer.observe(agents);
     } else {

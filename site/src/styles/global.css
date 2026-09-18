@@ -152,3 +152,7 @@ p.headline-line .tick { width: 1.15em; height: 1.15em; margin: 0; color: var(--a
 /* Chatbox caret blink (the typing cursor in the demo's message input). */
 @keyframes chatcaret { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
 [data-agent] .chat-caret { animation: chatcaret 1s steps(1) infinite; }
+
+/* The AI-agents note sits on Tic's own desktop wallpaper, so it reads as a note that appeared on
+   your Mac — tying the feature to Tic's "lists that live on your desktop" idea. */
+.desk-stage { background: var(--wallpaper); }
