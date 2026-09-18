@@ -150,6 +150,23 @@ extension AppDatabase {
         }
     }
 
+    /// Whether a task has an image (a cheap existence check, never loads the blob).
+    func hasImage(taskId: UUID) async throws -> Bool {
+        try await dbQueue.read { db in
+            try Bool.fetchOne(db, sql: "SELECT 1 FROM taskImage WHERE taskId = ?", arguments: [taskId]) ?? false
+        }
+    }
+
+    /// The ids of a note's tasks that have an image — a one-shot for `get_note` (the observation twin
+    /// is `observeTaskImageCrops`).
+    func taskImageIds(noteId: UUID) async throws -> Set<UUID> {
+        try await dbQueue.read { db in
+            Set(try UUID.fetchAll(db, sql: """
+                SELECT i.taskId FROM taskImage i JOIN task t ON t.id = i.taskId WHERE t.noteId = ?
+                """, arguments: [noteId]))
+        }
+    }
+
     /// The stored (original, uncropped) image bytes — read on demand, never via an observation.
     func taskImageData(taskId: UUID) async throws -> Data? {
         try await dbQueue.read { db in

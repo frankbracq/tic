@@ -22,6 +22,7 @@ struct MCPTools: Sendable {
 
     private static let maxTasksPerCall = 200
     private static let maxTextLength = 20_000
+    private static let maxImageBytes = 10 * 1024 * 1024
 
     // MARK: - Dispatch
 
@@ -41,6 +42,9 @@ struct MCPTools: Sendable {
             case "move_task":       value = try await moveTask(args)
             case "delete_tasks":    value = try await deleteTasks(args)
             case "clear_completed": value = try await clearCompleted(args)
+            case "set_task_image":  value = try await setTaskImage(args)
+            case "crop_task_image": value = try await cropTaskImage(args)
+            case "remove_task_image": value = try await removeTaskImage(args)
             default: throw ToolError("Unknown tool: \(name)")
             }
             return CallTool.Result(content: [.text(json(value))], isError: false)
@@ -139,6 +143,26 @@ struct MCPTools: Sendable {
                  description: "Remove every checked-off task in a note. Cannot be undone.",
                  inputSchema: object(["note_id": prop("string", "The note's id")], required: ["note_id"]),
                  annotations: destructive),
+
+            Tool(name: "set_task_image",
+                 description: "Attach an image to a task (replacing any it has). Provide the image as base64 PNG or JPEG (a data: URL is also accepted). Max 10 MB.",
+                 inputSchema: object([
+                    "task_id": prop("string", "The task's id"),
+                    "data": prop("string", "Base64-encoded PNG or JPEG"),
+                 ], required: ["task_id", "data"])),
+
+            Tool(name: "crop_task_image",
+                 description: "Crop a task's image. The rect is fractions 0-1 of the image with a top-left origin; it's clamped to stay in bounds. The original is kept, so cropping is reversible.",
+                 inputSchema: object([
+                    "task_id": prop("string", "The task's id"),
+                    "x": prop("number", "Left, 0-1"), "y": prop("number", "Top, 0-1"),
+                    "width": prop("number", "Width, 0-1"), "height": prop("number", "Height, 0-1"),
+                 ], required: ["task_id", "x", "y", "width", "height"])),
+
+            Tool(name: "remove_task_image",
+                 description: "Remove a task's image. If the task has no text, the task itself is removed too (an image-only task).",
+                 inputSchema: object(["task_id": prop("string", "The task's id")], required: ["task_id"]),
+                 annotations: destructive),
         ]
     }
 
@@ -183,7 +207,8 @@ struct MCPTools: Sendable {
         let id = try args.uuid("note_id")
         let note = try await note(id)
         let tasks = try await database.tasks(noteId: id)
-        return noteValue(note, tasks: tasks)
+        let imageIds = try await database.taskImageIds(noteId: id)
+        return noteValue(note, tasks: tasks, imageIds: imageIds)
     }
 
     private func createNote(_ args: Args) async throws -> Value {
@@ -354,6 +379,57 @@ struct MCPTools: Sendable {
         return .object(["cleared": .int(doneIds.count)])
     }
 
+    // MARK: - Image tools
+
+    private func setTaskImage(_ args: Args) async throws -> Value {
+        let id = try args.uuid("task_id")
+        guard try await database.task(id: id) != nil else { throw ToolError("No task with id \(id.uuidString)") }
+        guard let encoded = args.string("data") else { throw ToolError("'data' (base64 PNG/JPEG) is required") }
+        // Accept a bare base64 string or a data: URL.
+        let base64 = encoded.hasPrefix("data:") ? String(encoded.drop(while: { $0 != "," }).dropFirst()) : encoded
+        guard let raw = Data(base64Encoded: base64, options: .ignoreUnknownCharacters) else {
+            throw ToolError("'data' is not valid base64")
+        }
+        guard raw.count <= Self.maxImageBytes else { throw ToolError("Image too large (max 10 MB)") }
+        guard let normalized = TaskImage.normalizedData(raw) else { throw ToolError("'data' isn't a decodable image (PNG or JPEG)") }
+        try await database.setTaskImage(taskId: id, data: normalized)   // replacing resets the crop to full
+        return .object(["task_id": .string(id.uuidString), "bytes": .int(normalized.count)])
+    }
+
+    private func cropTaskImage(_ args: Args) async throws -> Value {
+        let id = try args.uuid("task_id")
+        guard try await database.hasImage(taskId: id) else { throw ToolError("Task \(id.uuidString) has no image to crop") }
+        guard let x = args.double("x"), let y = args.double("y"),
+              let w = args.double("width"), let h = args.double("height") else {
+            throw ToolError("Crop needs x, y, width, height as fractions 0…1 with a top-left origin")
+        }
+        // Clamp to an in-bounds rect no smaller than the minimum side.
+        let cw = min(max(w, TaskImage.minCropSide), 1)
+        let ch = min(max(h, TaskImage.minCropSide), 1)
+        let cx = min(max(x, 0), 1 - cw)
+        let cy = min(max(y, 0), 1 - ch)
+        let crop = CGRect(x: cx, y: cy, width: cw, height: ch)
+        try await database.updateTaskImageCrop(taskId: id, crop: crop)
+        return .object(["task_id": .string(id.uuidString), "crop": frameValue(crop)])
+    }
+
+    private func removeTaskImage(_ args: Args) async throws -> Value {
+        let id = try args.uuid("task_id")
+        guard let task = try await database.task(id: id) else { throw ToolError("No task with id \(id.uuidString)") }
+        guard try await database.hasImage(taskId: id) else { throw ToolError("Task has no image") }
+        if task.text.trimmed.isEmpty {
+            // An image-only task has nothing left once the image goes — delete the task (image cascades),
+            // exactly like the UI's remove-image.
+            let all = try await database.tasks(noteId: task.noteId)
+            let survivors = TaskOutline.normalizedLevels(all.filter { $0.id != id })
+            let levels = TaskOutline.indentLevelChanges(from: all, to: survivors).map { TaskLevelUpdate(id: $0.id, level: $0.level) }
+            try await database.applyStructuralUpdate(deleteIds: [id], reorder: survivors, levels: levels)
+            return .object(["removed_image": .bool(true), "deleted_task": .bool(true)])
+        }
+        try await database.deleteTaskImage(taskId: id)
+        return .object(["removed_image": .bool(true), "deleted_task": .bool(false)])
+    }
+
     // MARK: - Helpers
 
     private func note(_ id: UUID) async throws -> Note {
@@ -396,7 +472,7 @@ struct MCPTools: Sendable {
         return m
     }
 
-    private func noteValue(_ n: Note, tasks: [TaskItem]?) -> Value {
+    private func noteValue(_ n: Note, tasks: [TaskItem]?, imageIds: Set<UUID> = []) -> Value {
         var o: [String: Value] = [
             "id": .string(n.id.uuidString),
             "title": .string(n.title),
@@ -417,6 +493,7 @@ struct MCPTools: Sendable {
                     "text": .string(t.text),
                     "level": .int(t.indentLevel),
                     "done": .bool(t.isDone),
+                    "has_image": .bool(imageIds.contains(t.id)),
                 ])
             })
         }

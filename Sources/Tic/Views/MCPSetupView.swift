@@ -110,6 +110,10 @@ struct MCPSetupView: View {
             .frame(maxHeight: .infinity)
 
             HStack(spacing: 10) {
+                if let link = selectedClient.deeplink {
+                    Button { open(link) } label: { Label("Add to \(selectedClient.name)", systemImage: "arrow.down.app") }
+                        .buttonStyle(.borderedProminent)
+                }
                 Button { copy() } label: {
                     Label(copied ? "Copied" : "Copy", systemImage: copied ? "checkmark" : "doc.on.doc")
                 }
@@ -135,6 +139,11 @@ struct MCPSetupView: View {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(selectedClient.snippet, forType: .string)
         copied = true
+    }
+
+    /// Opens a client install deeplink (Cursor / VS Code).
+    private func open(_ link: String) {
+        if let url = URL(string: link) { NSWorkspace.shared.open(url) }
     }
 
     /// Opens the client's config file, or reveals its folder in Finder if the file doesn't exist yet.

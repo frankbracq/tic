@@ -14,12 +14,22 @@ struct MCPClient: Identifiable, Sendable {
     let detail: String        // the one-line "how"
     let install: Install
     let snippet: String
+    /// A one-click "Add to <app>" URL, for clients that support an install deeplink.
+    var deeplink: String? = nil
 
     var name: String { id }
     var configPath: String? { if case let .configFile(path) = install { return path } else { return nil } }
 }
 
 enum MCPClients {
+    /// Percent-encodes a query value, escaping everything but the URL-unreserved set (so base64
+    /// `+`/`/`/`=` and JSON punctuation survive the round trip).
+    private static func urlEncode(_ s: String) -> String {
+        var allowed = CharacterSet.alphanumerics
+        allowed.insert(charactersIn: "-._~")
+        return s.addingPercentEncoding(withAllowedCharacters: allowed) ?? s
+    }
+
     /// All clients, with the live executable path baked into each snippet.
     static func all(executablePath exe: String) -> [MCPClient] {
         let mcpServers = """
@@ -33,6 +43,14 @@ enum MCPClients {
         }
         """
 
+        // One-click install URLs. Cursor takes base64 of the inner server config; VS Code takes the
+        // URL-encoded server object. Both open the app and pre-fill the config.
+        let cursorConfig = "{\"command\":\"\(exe)\",\"args\":[\"--mcp\"]}"
+        let cursorLink = "cursor://anysphere.cursor-deeplink/mcp/install?name=tic&config="
+            + urlEncode(Data(cursorConfig.utf8).base64EncodedString())
+        let vscodeObject = "{\"name\":\"tic\",\"command\":\"\(exe)\",\"args\":[\"--mcp\"]}"
+        let vscodeLink = "vscode:mcp/install?" + urlEncode(vscodeObject)
+
         return [
             MCPClient(id: "Claude Desktop",
                 detail: "Add this to your Claude Desktop config, then restart Claude.",
@@ -45,14 +63,15 @@ enum MCPClients {
                 snippet: "claude mcp add tic -- \"\(exe)\" --mcp"),
 
             MCPClient(id: "Cursor",
-                detail: "Add this to Cursor's MCP config, then reload.",
+                detail: "Click Add to Cursor, or paste this into Cursor's MCP config.",
                 install: .configFile(path: "~/.cursor/mcp.json"),
-                snippet: mcpServers),
+                snippet: mcpServers, deeplink: cursorLink),
 
             MCPClient(id: "VS Code",
-                detail: "Run this once (needs the GitHub Copilot MCP support).",
+                detail: "Click Add to VS Code, or run this once in a terminal.",
                 install: .command,
-                snippet: "code --add-mcp '{\"name\":\"tic\",\"command\":\"\(exe)\",\"args\":[\"--mcp\"]}'"),
+                snippet: "code --add-mcp '{\"name\":\"tic\",\"command\":\"\(exe)\",\"args\":[\"--mcp\"]}'",
+                deeplink: vscodeLink),
 
             MCPClient(id: "Codex CLI",
                 detail: "Add this block to your Codex config.",

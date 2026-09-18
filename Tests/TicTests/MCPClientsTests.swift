@@ -24,4 +24,15 @@ struct MCPClientsTests {
         #expect(claudeCode?.configPath == nil)                       // CLI install
         #expect(claudeCode?.snippet.hasPrefix("claude mcp add tic") == true)
     }
+
+    @Test("Cursor and VS Code offer install deeplinks; file clients don't")
+    func deeplinks() {
+        let clients = MCPClients.all(executablePath: "/Applications/Tic.app/Contents/MacOS/Tic")
+        let cursor = clients.first { $0.name == "Cursor" }
+        #expect(cursor?.deeplink?.hasPrefix("cursor://") == true)
+        #expect(cursor?.deeplink?.contains("config=") == true)
+        let vscode = clients.first { $0.name == "VS Code" }
+        #expect(vscode?.deeplink?.hasPrefix("vscode:mcp/install?") == true)
+        #expect(clients.first { $0.name == "Claude Desktop" }?.deeplink == nil)
+    }
 }

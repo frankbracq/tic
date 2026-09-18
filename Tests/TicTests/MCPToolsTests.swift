@@ -170,4 +170,37 @@ struct MCPToolsTests {
         let (_, e4) = await call(h.tools, "create_note", ["color": "chartreuse"])
         #expect(e4)   // unknown colour
     }
+
+    // A valid 1x1 transparent PNG, base64.
+    private static let pngBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/pLvAAAAAElFTkSuQmCC"
+
+    @Test("set/crop/remove image round-trips, and get_note reports has_image")
+    @MainActor func imageTools() async throws {
+        let h = try Harness()
+        let (created, _) = await call(h.tools, "create_note", ["title": "Pics", "tasks": .array([.string("Shot")])])
+        let noteId = try #require(created.objectValue?["id"]?.stringValue)
+        let (note, _) = await call(h.tools, "get_note", ["note_id": .string(noteId)])
+        let taskId = try #require(note.objectValue?["tasks"]?.arrayValue?[0].objectValue?["id"]?.stringValue)
+
+        let (_, e1) = await call(h.tools, "set_task_image", ["task_id": .string(taskId), "data": .string(Self.pngBase64)])
+        #expect(!e1)
+        var (after, _) = await call(h.tools, "get_note", ["note_id": .string(noteId)])
+        #expect(after.objectValue?["tasks"]?.arrayValue?[0].objectValue?["has_image"]?.boolValue == true)
+
+        // Crop out of range is clamped, not rejected.
+        let (cropRes, e2) = await call(h.tools, "crop_task_image",
+            ["task_id": .string(taskId), "x": 0.5, "y": 0.5, "width": 0.9, "height": 0.9])
+        #expect(!e2)
+        func num(_ v: Value?) -> Double? { v?.doubleValue ?? v?.intValue.map(Double.init) }
+        #expect(num(cropRes.objectValue?["crop"]?.objectValue?["width"]) == 0.9)   // requested size kept
+        #expect(abs((num(cropRes.objectValue?["crop"]?.objectValue?["x"]) ?? 0) - 0.1) < 0.0001)  // x shifted to stay in bounds
+
+        let (rmRes, e3) = await call(h.tools, "remove_task_image", ["task_id": .string(taskId)])
+        #expect(!e3)
+        #expect(rmRes.objectValue?["deleted_task"]?.boolValue == false)      // task has text → kept
+        (after, _) = await call(h.tools, "get_note", ["note_id": .string(noteId)])
+        #expect(after.objectValue?["tasks"]?.arrayValue?[0].objectValue?["has_image"]?.boolValue == false)
+    }
+
+
 }
