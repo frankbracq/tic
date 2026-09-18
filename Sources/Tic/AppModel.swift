@@ -122,10 +122,19 @@ final class AppModel {
             searchWindow = panel
         }
         guard let window = searchWindow else { return }
-        window.center()                  // centered on screen every time it's called
+        centerOnActiveDisplay(window)    // centered on screen every time it's called
         window.level = .floating         // and always on top when called
         window.makeKeyAndOrderFront(nil)
         NSApp.activate()
+    }
+
+    /// Dead-centre of the display the pointer is on. `NSWindow.center()` isn't that: it sits above
+    /// centre, and on whichever display the reused panel was last shown.
+    private func centerOnActiveDisplay(_ window: NSWindow) {
+        let pointer = NSEvent.mouseLocation
+        guard let area = (NSScreen.screens.first { $0.frame.contains(pointer) } ?? NSScreen.main)?.visibleFrame
+        else { return }
+        window.setFrameOrigin(NSPoint(x: area.midX - window.frame.width / 2, y: area.midY - window.frame.height / 2))
     }
 
     /// Closes the Lists palette (Escape / pick a list / its close button).
@@ -158,7 +167,7 @@ final class AppModel {
             mcpWindow = panel
         }
         guard let window = mcpWindow else { return }
-        window.center()
+        centerOnActiveDisplay(window)
         window.level = .floating
         window.makeKeyAndOrderFront(nil)
         NSApp.activate()

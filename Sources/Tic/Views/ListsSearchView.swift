@@ -8,6 +8,8 @@ struct ListsSearchView: View {
     @State private var model = AppModel.shared
     @State private var search = ""
     @State private var selectedID: Note.ID?
+    @State private var scrollRequest: Note.ID?
+    @State private var pointerAtKeyMove: NSPoint?
     @FocusState private var searchFocused: Bool
 
     private var results: [Note] {
@@ -27,6 +29,7 @@ struct ListsSearchView: View {
         }
         .frame(width: 700, height: 440)
         .background(.regularMaterial)
+        .ignoresSafeArea()               // else the hidden title bar leaves a blank strip on top
         .task {
             searchFocused = true
             selectedID = results.first?.id
@@ -87,7 +90,9 @@ struct ListsSearchView: View {
                                 onDelete: { model.delete(note) }
                             )
                             .id(note.id)
-                            .onHover { if $0 { selectedID = note.id } }
+                            // A row scrolled under a resting pointer isn't a hover: that would
+                            // snatch the selection back from the arrow keys.
+                            .onHover { if $0, NSEvent.mouseLocation != pointerAtKeyMove { selectedID = note.id } }
                             .onTapGesture { selectedID = note.id; openSelected() }
                         }
                     }
@@ -95,9 +100,12 @@ struct ListsSearchView: View {
                 .padding(.horizontal, 8)
                 .padding(.vertical, 6)
             }
-            .onChange(of: selectedID) { _, id in
+            // Only the arrow keys scroll. Hover also selects, and scrolling for that moved the
+            // list under the pointer, which hovered a new row, which scrolled again…
+            .onChange(of: scrollRequest) { _, id in
                 guard let id else { return }
-                withAnimation(.easeOut(duration: 0.12)) { proxy.scrollTo(id, anchor: .center) }
+                withAnimation(.easeOut(duration: 0.12)) { proxy.scrollTo(id) }
+                scrollRequest = nil
             }
         }
         .frame(maxHeight: .infinity)
@@ -138,6 +146,8 @@ struct ListsSearchView: View {
         let current = selectedID.flatMap { ids.firstIndex(of: $0) } ?? -1
         let next = min(max(current + delta, 0), ids.count - 1)
         selectedID = ids[next]
+        scrollRequest = ids[next]
+        pointerAtKeyMove = NSEvent.mouseLocation
     }
 
     private func openSelected() {
