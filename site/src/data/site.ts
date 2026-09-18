@@ -89,17 +89,17 @@ export const agentTasks: Task[] = [
 // `tick` marks the message that checks the Flights subtree off. Rendered as chat bubbles.
 export type ChatTurn =
   | { who: 'user'; text: string }
-  | { who: 'agent'; text: string; tick?: boolean }
-  | { who: 'tool'; tool: string; args: string; reveal?: number[] };
+  | { who: 'agent'; text: string }
+  | { who: 'tool'; label: string; reveal?: number[]; tick?: boolean };
 export const agentChat: ChatTurn[] = [
   { who: 'user', text: 'Plan a 3-day trip to Kyoto 🗾' },
-  { who: 'agent', text: 'On it — making you a note 👇' },
-  { who: 'tool', tool: 'create_note', args: '“Kyoto trip” · green' },
-  { who: 'tool', tool: 'add_tasks', args: 'Flights · Book outbound · Book return', reveal: [0, 1, 2] },
-  { who: 'tool', tool: 'add_tasks', args: 'Lodging · Food & coffee', reveal: [3, 4] },
+  { who: 'agent', text: 'On it — I’ll set this up in Tic 👇' },
+  { who: 'tool', label: 'Created the note “Kyoto trip”' },
+  { who: 'tool', label: 'Added Flights, Book outbound, Book return', reveal: [0, 1, 2] },
+  { who: 'tool', label: 'Added Lodging and Food & coffee', reveal: [3, 4] },
   { who: 'user', text: 'Book the flights and check them off' },
-  { who: 'tool', tool: 'update_task', args: 'Flights → done' },
-  { who: 'agent', text: 'Done ✓ Flights and both legs are checked off.', tick: true },
+  { who: 'tool', label: 'Checked off Flights', tick: true },
+  { who: 'agent', text: 'Done ✓ Flights and both legs are ticked.' },
 ];
 
 // Popular MCP clients that can drive Tic. Icons are Phosphor (generic, not brand logos).
@@ -124,6 +124,11 @@ export const features = [
     id: 'subtasks',
     title: 'Subtasks, notes and Markdown',
     body: 'Nest tasks three levels deep. Finish every subtask and the parent ticks itself off. Add a second line with Shift-Return, and write bold, italic, code, strikethrough or links right in the task.',
+  },
+  {
+    id: 'agents',
+    title: 'Let your AI agent draft the list',
+    body: 'Tic speaks MCP, so Claude, Cursor, Zed and the Codex or Gemini CLIs can create notes, draft tasks and tick them off — live on your desktop. It’s off by default, with one-click setup for each client.',
   },
   {
     id: 'images',
