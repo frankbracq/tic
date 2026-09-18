@@ -240,17 +240,20 @@ Groceries</code></pre>
               turn.who === 'user' ? (
                 <p class="msg max-w-[85%] self-end rounded-2xl rounded-br-sm bg-accent px-3.5 py-2 text-on-accent" style={`--i:${i}`} data-who="user">{turn.text}</p>
               ) : turn.who === 'agent' ? (
-                <p class="msg max-w-[85%] self-start rounded-2xl rounded-bl-sm bg-white/10 px-3.5 py-2 text-white/85" style={`--i:${i}`} data-who="agent" data-tick={turn.tick || undefined}>{turn.text}</p>
+                <p class="msg relative max-w-[85%] self-start rounded-2xl rounded-bl-sm bg-white/10 px-3.5 py-2 text-white/85" style={`--i:${i}`} data-who="agent" data-tick={turn.tick || undefined}>
+                  <span class="msg-body">{turn.text}</span>
+                  <span class="msg-typing" aria-hidden="true"><i /><i /><i /></span>
+                </p>
               ) : (
-                <p class="msg flex flex-wrap items-baseline gap-x-2 gap-y-1 self-start rounded-xl bg-white/[0.06] px-3 py-2 font-mono text-[12px] ring-1 ring-white/10" style={`--i:${i}`} data-who="tool" data-reveal={turn.reveal?.join(',')}>
-                  <span class="rounded bg-accent/15 px-1.5 py-0.5 font-semibold text-accent">{turn.tool}</span>
-                  <span class="text-white/70">{turn.args}</span>
+                <p class="msg relative self-start rounded-xl bg-white/[0.06] px-3 py-2 font-mono text-[12px] ring-1 ring-white/10" style={`--i:${i}`} data-who="tool" data-reveal={turn.reveal?.join(',')}>
+                  <span class="msg-body flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                    <span class="rounded bg-accent/15 px-1.5 py-0.5 font-semibold text-accent">{turn.tool}</span>
+                    <span class="text-white/70">{turn.args}</span>
+                  </span>
+                  <span class="msg-typing" aria-hidden="true"><i /><i /><i /></span>
                 </p>
               )
             ))}
-            <span class="dots flex items-center gap-1.5 self-start rounded-2xl rounded-bl-sm bg-white/10 px-3.5 py-3" style="display:none" aria-hidden="true">
-              <span class="size-2 rounded-full bg-white/70" /><span class="size-2 rounded-full bg-white/70" /><span class="size-2 rounded-full bg-white/70" />
-            </span>
           </div>
           <!-- The chatbox: the person's message types out here, then sends up into the log -->
           <div class="flex items-center gap-2 border-t border-white/10 p-3">
@@ -398,7 +401,6 @@ Groceries</code></pre>
     agents.setAttribute('data-play', ''); // reveal the framing (badge/heading/cards)
     const msgs = [...agents.querySelectorAll<HTMLElement>('.msg')];
     const rows = [...agents.querySelectorAll<HTMLElement>('#agent-note .task')];
-    const dots = agents.querySelector<HTMLElement>('.dots');
     const typed = agents.querySelector<HTMLElement>('.chat-typed');
     const placeholder = agents.querySelector<HTMLElement>('.chat-ph');
     const cascade = rows.slice(0, 3); // Flights + its two legs
@@ -420,7 +422,6 @@ Groceries</code></pre>
     const reset = () => {
       msgs.forEach((m) => m.classList.remove('in'));
       rows.forEach((r) => { r.classList.remove('in'); setDone(r, false); });
-      if (dots) dots.style.display = 'none';
       clearBox();
     };
 
@@ -436,9 +437,10 @@ Groceries</code></pre>
           await sleep(500);
           continue;
         }
-        // The agent "types" before each reply / tool call.
-        if (dots) { dots.style.display = 'flex'; await sleep(650); dots.style.display = 'none'; }
-        msg.classList.add('in');
+        // The agent "types" in the bubble's own slot (dots → text, no layout shift).
+        msg.classList.add('in', 'pending');
+        await sleep(700);
+        msg.classList.remove('pending');
         // A tool call fills in the note rows it names.
         if (msg.dataset.reveal) {
           for (const idx of msg.dataset.reveal.split(',')) { rows[+idx]?.classList.add('in'); await sleep(260); }
