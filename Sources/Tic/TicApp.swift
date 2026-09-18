@@ -115,6 +115,8 @@ private struct MenuBarContent: View {
 
         Button("Search Lists…") { model.openSearch() }
 
+        Button("AI Agents (MCP)…") { model.openMCPSetup() }
+
         Toggle("Launch at Login", isOn: Binding(
             get: { model.launchAtLogin },
             set: { model.setLaunchAtLogin($0) }

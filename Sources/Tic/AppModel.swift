@@ -23,6 +23,7 @@ final class AppModel {
 
     @ObservationIgnored private var notesObservation: Task<Void, Never>?
     @ObservationIgnored private var searchWindow: NSWindow?
+    @ObservationIgnored private var mcpWindow: NSWindow?
 
     private init() {
         // The DB lives in Application Support; fall back to in-memory so the app still runs if
@@ -129,6 +130,41 @@ final class AppModel {
     /// Closes the Lists palette (Escape / pick a list / its close button).
     func dismissSearch() {
         searchWindow?.orderOut(nil)
+    }
+
+    /// Opens the "AI Agents (MCP)" setup window (the toggle + per-client install snippets). A single
+    /// reused, centered, floating panel — same treatment as the Lists palette.
+    func openMCPSetup() {
+        if mcpWindow == nil {
+            let panel = NSPanel(
+                contentRect: NSRect(x: 0, y: 0, width: 680, height: 460),
+                styleMask: [.titled, .closable, .fullSizeContentView],
+                backing: .buffered, defer: false
+            )
+            panel.titleVisibility = .hidden
+            panel.titlebarAppearsTransparent = true
+            panel.isFloatingPanel = true
+            panel.level = .floating
+            panel.hidesOnDeactivate = false
+            panel.isReleasedWhenClosed = false
+            panel.isMovableByWindowBackground = true
+            panel.isOpaque = false
+            panel.backgroundColor = .clear
+            panel.standardWindowButton(.closeButton)?.isHidden = true
+            panel.standardWindowButton(.miniaturizeButton)?.isHidden = true
+            panel.standardWindowButton(.zoomButton)?.isHidden = true
+            panel.contentView = NSHostingView(rootView: MCPSetupView())
+            mcpWindow = panel
+        }
+        guard let window = mcpWindow else { return }
+        window.center()
+        window.level = .floating
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate()
+    }
+
+    func dismissMCPSetup() {
+        mcpWindow?.orderOut(nil)
     }
 
     // MARK: - MCP (AI agents)
