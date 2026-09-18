@@ -2,6 +2,24 @@
 
 All notable changes to Tic are documented here.
 
+## [0.7.0] - 2026-09-18
+
+### Features
+
+- *(mcp)* Spike the in-process MCP server + stdio bridge
+- *(mcp)* Full note+task tools with live UI updates
+- *(mcp)* Setup window + menu item with per-client install snippets
+- *(mcp)* Image tools + one-click Cursor/VS Code install deeplinks
+- *(site)* Add an "AI agents" section for MCP, with a live-fill animation
+- *(site)* Typing-chatbox conversation demo for the AI agents section
+- *(site)* MCP as a feature in the list, with a real agent-UI demo
+
+### Bug Fixes
+
+- *(mcp)* Surface agent-written notes; add focus_note to jump to one
+- *(site)* Typing indicator no longer shifts the chat layout
+- *(site)* Order-safe agent animation + seat the note on Tic's desktop
+
 ## [0.6.0] - 2026-09-16
 
 ### Features
