@@ -2,6 +2,12 @@
 
 All notable changes to Tic are documented here.
 
+## [0.7.1] - 2026-09-18
+
+### Bug Fixes
+
+- *(palette)* Stop hover auto-scroll, open dead-centre, drop the top strip
+
 ## [0.7.0] - 2026-09-18
 
 ### Features
