@@ -27,6 +27,8 @@ bar click — glance at them, check things off, drag them around. Each note is i
   `~~strike~~`, links). Tap to edit; drag to reorder, or drag right to nest.
 - **Solid or Liquid-Glass** notes — per-note color themes, or a translucent material that shows
   the desktop through it.
+- **Print** — **⌘P** or the printer button prints a list as a clean paper checklist (or Save as
+  PDF from the print panel), respecting its hide/sink-completed options.
 - **Roll-up** — double-click a note's title bar to collapse it to just the header.
 - **Raycast-style search palette** — a floating, centered command palette to search/open/delete
   any list, with keyboard navigation.
@@ -80,6 +82,7 @@ open Package.swift        # edit in Xcode
 | **Shift-Tab** | Make the task a subtask (nest one level deeper) |
 | **⌃ Shift-Tab** | Un-nest a subtask (move it back out) |
 | **⌘N** | New list |
+| **⌘P** | Print the focused list |
 | **Double-click** the title bar | Roll the note up / down |
 
 You can also **drag a task** to reorder it, or **drag it right** to nest it — the drop indicator

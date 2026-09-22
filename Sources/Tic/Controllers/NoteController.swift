@@ -38,6 +38,9 @@ final class NoteController {
     /// Asks the manager to show a task's image (by task id) in the image window.
     @ObservationIgnored var onOpenImage: ((UUID) -> Void)?
 
+    /// Asks the manager to print this list (header printer button / ⌘P).
+    @ObservationIgnored var onPrint: (() -> Void)?
+
     init(note: Note, database: AppDatabase) {
         self.noteID = note.id
         self.note = note
@@ -504,5 +507,21 @@ extension NoteController {
     /// Creates a new, separate note.
     func requestNewNote() {
         onNewNote?()
+    }
+
+    /// Prints the list as it's displayed (see `ListPrinter`).
+    func requestPrint() {
+        onPrint?()
+    }
+
+    /// Each displayed task's image, cropped, for printing — drawn from the loaded thumbnails (≈1024px,
+    /// plenty for paper). An image whose thumbnail hasn't decoded yet is simply left out.
+    var printableImages: [UUID: CGImage] {
+        var images: [UUID: CGImage] = [:]
+        for task in displayedTasks {
+            guard let crop = imageCrops[task.id], let thumbnail = thumbnails[task.id] else { continue }
+            images[task.id] = TaskImage.cropped(thumbnail, to: crop) ?? thumbnail
+        }
+        return images
     }
 }
