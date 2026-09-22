@@ -69,10 +69,11 @@ final class NotePanel: NSPanel {
     // MARK: - Print
 
     /// Prints the note's list. Set by `NoteWindowManager`; reached via ⌘P (`AppDelegate`'s key monitor)
-    /// or any responder-chain `print(_:)`.
+    /// or a responder-chain `print(_:)` action. `NSWindow` doesn't declare `print(_:)` (only NSView /
+    /// NSDocument do), so this adds the selector rather than overriding one — hence `@objc`, like `paste`.
     var onPrint: (() -> Void)?
 
-    override func print(_ sender: Any?) {
+    @objc func print(_ sender: Any?) {
         onPrint?()
     }
 
