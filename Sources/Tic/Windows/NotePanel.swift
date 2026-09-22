@@ -66,6 +66,16 @@ final class NotePanel: NSPanel {
         if let data = NSPasteboard.general.pastableImageData() { onPasteImage?(data) }
     }
 
+    // MARK: - Print
+
+    /// Prints the note's list. Set by `NoteWindowManager`; reached via ⌘P (`AppDelegate`'s key monitor)
+    /// or any responder-chain `print(_:)`.
+    var onPrint: (() -> Void)?
+
+    override func print(_ sender: Any?) {
+        onPrint?()
+    }
+
     override func validateUserInterfaceItem(_ item: any NSValidatedUserInterfaceItem) -> Bool {
         if item.action == #selector(paste(_:)) { return NSPasteboard.general.hasPastableImage }
         return super.validateUserInterfaceItem(item)

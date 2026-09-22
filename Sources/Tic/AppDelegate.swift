@@ -18,19 +18,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// ⌘N → New Note while Tic is the active app. A menu-style `MenuBarExtra` button's
-    /// `keyboardShortcut` only fires while that menu is open, so we dispatch it ourselves via a
-    /// local key monitor (fires whenever any Tic window is key).
+    /// ⌘N → New Note (and ⌘P → print the key note) while Tic is the active app. A menu-style
+    /// `MenuBarExtra` button's `keyboardShortcut` only fires while that menu is open, so we dispatch
+    /// it ourselves via a local key monitor (fires whenever any Tic window is key).
     private func installNewNoteShortcut() {
         newNoteKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
             // Membership test (not == .command) so Caps Lock / Fn in the flags don't break it,
             // and case-insensitive so "N" under Caps Lock still matches.
             let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
             guard flags.contains(.command),
-                  !flags.contains(.shift), !flags.contains(.option), !flags.contains(.control),
-                  event.charactersIgnoringModifiers?.lowercased() == "n" else { return event }
-            Task { @MainActor in AppModel.shared.newNote() }
-            return nil   // consume
+                  !flags.contains(.shift), !flags.contains(.option), !flags.contains(.control)
+            else { return event }
+            switch event.charactersIgnoringModifiers?.lowercased() {
+            case "n":
+                Task { @MainActor in AppModel.shared.newNote() }
+                return nil   // consume
+            case "p":
+                // ⌘P prints the note that has the keyboard (there's no File menu to route it).
+                guard let panel = NSApp.keyWindow as? NotePanel else { return event }
+                // Deferred so the print panel's modal loop doesn't run inside the event monitor.
+                Task { @MainActor in panel.onPrint?() }
+                return nil
+            default:
+                return event
+            }
         }
     }
 
