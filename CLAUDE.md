@@ -94,6 +94,11 @@ panels**, and a few responsibilities are deliberately split across the AppKit/Sw
   image window a double-click opens (AppKit `ZoomScrollView` zoom + Open in Preview), dressed like its
   note (paper/glass background, note-style header, hints) — one reusable `ImageWindow` owned by
   `NoteWindowManager`; far quicker than launching Preview.
+- **`ListPrinter`** (AppKit) — prints a list (header printer button or ⌘P, routed by `AppDelegate`'s
+  key monitor to the key `NotePanel.onPrint`). `document(…)` builds a black-on-white
+  `NSAttributedString` (☐/☑ rows, hanging indent per level, inline Markdown mapped to real fonts,
+  multiline via U+2028, cropped thumbnails as attachments) from what the note *displays*; an
+  `NSTextView` sized to the page goes to `NSPrintOperation` (pagination + Save as PDF for free).
 - **MCP server (`MCP/`)** — lets AI agents drive Tic. `MCPService` runs an `NWListener` on a Unix
   socket beside the DB (`~/Library/Application Support/Tic/mcp.sock`, 0600) — one official-SDK
   `Server` session per connection (per agent). `MCPTools` is the tool surface (`create_note`,
