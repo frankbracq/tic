@@ -72,6 +72,7 @@ struct NoteHeaderView: View {
             completedButton
             if controller.completedCount > 0 { clearButton }
             Spacer(minLength: 0)
+            printButton
             collapseButton
             floatButton
             closeButton
@@ -188,6 +189,12 @@ struct NoteHeaderView: View {
         // A "tidy up" wand rather than a trash can — this clears finished items, it isn't a delete.
         iconButton(systemName: "wand.and.sparkles", isActive: false, help: "Clean up completed tasks") {
             showClearConfirm = true
+        }
+    }
+
+    private var printButton: some View {
+        iconButton(systemName: "printer", isActive: false, help: "Print list (⌘P)") {
+            controller.requestPrint()
         }
     }
 

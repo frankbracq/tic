@@ -91,6 +91,15 @@ final class NoteWindowManager: NSObject, NSWindowDelegate {
         panel.onPasteImage = { [weak controller] data in
             controller?.stageImage(data)
         }
+        controller.onPrint = { [weak controller] in
+            guard let controller else { return }
+            ListPrinter.print(
+                title: controller.note.title,
+                tasks: controller.displayedTasks,
+                images: controller.printableImages
+            )
+        }
+        panel.onPrint = { [weak controller] in controller?.requestPrint() }
 
         place(panel)
         if makeKey {
